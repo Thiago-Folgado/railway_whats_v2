@@ -57,12 +57,19 @@ const configuracaoProdutos = {
 };
 
 // QR Code
-client.on('qr', (qr) => {
-    console.log('\n🔗 ESCANEIE ESTE QR CODE COM SEU WHATSAPP:');
-    console.log('='.repeat(50));
-    qrcode.generate(qr, { small: true });
-    console.log('='.repeat(50));
-    console.log('📱 Abra o WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo\n');
+const fs = require('fs');
+const QRCode = require('qrcode');
+
+// QR Code
+client.on('qr', async (qr) => {
+    try {
+        // Gera QR code em PNG
+        await QRCode.toFile('qr.png', qr, { width: 300 });
+        console.log('🔗 QR code gerado! Salvo como "qr.png".');
+        console.log('📱 Abra o WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo e escaneie o QR code.');
+    } catch (err) {
+        console.error('❌ Erro ao gerar QR code em PNG:', err);
+    }
 });
 
 // WhatsApp pronto
