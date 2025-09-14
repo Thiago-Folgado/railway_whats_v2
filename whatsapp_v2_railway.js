@@ -637,3 +637,12 @@ process.on('SIGINT', () => {
     client.destroy();
     process.exit(0);
 });
+
+// Adicione este endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
