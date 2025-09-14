@@ -58,10 +58,6 @@ const configuracaoProdutos = {
 
 // QR Code
 const fs = require('fs');
-const QRCode = require('qrcode');
-
-// QR Code
-const fs = require('fs');
 const path = require('path');
 const QRCode = require('qrcode'); // já deve estar instalado
 
