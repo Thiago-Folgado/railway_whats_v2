@@ -1,0 +1,45 @@
+# Dependências
+node_modules
+npm-debug.log*
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de desenvolvimento
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+logs/
+
+# Cache do WhatsApp
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Git
+.git
+.gitignore
+
+# Documentação
+README.md
+*.md
+
+# Editores
+.vscode/
+.idea/
+
+# Arquivos temporários
+*.tmp
+*.temp
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/

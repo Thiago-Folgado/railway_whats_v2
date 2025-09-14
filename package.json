@@ -1,0 +1,27 @@
+{
+  "name": "whatsapp-bot-railway",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp para automação integrado com N8N",
+  "main": "whatsapp_v2_railway.js",
+  "scripts": {
+    "start": "node whatsapp_v2_railway.js",
+    "dev": "nodemon whatsapp_v2_railway.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode-terminal": "^0.12.0",
+    "express": "^4.18.2",
+    "puppeteer": "^21.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "automation",
+    "n8n"
+  ],
+  "author": "Seu Nome",
+  "license": "ISC"
+}
