@@ -61,16 +61,38 @@ const fs = require('fs');
 const QRCode = require('qrcode');
 
 // QR Code
+const fs = require('fs');
+const path = require('path');
+const QRCode = require('qrcode'); // já deve estar instalado
+
+// Diretório e nome do arquivo do QR code
+const qrPath = path.join(__dirname, 'qr.png');
+
+// QR Code
 client.on('qr', async (qr) => {
+    console.log('\n🔗 QR code gerado! Salvo como "qr.png".');
+
     try {
-        // Gera QR code em PNG
-        await QRCode.toFile('qr.png', qr, { width: 300 });
-        console.log('🔗 QR code gerado! Salvo como "qr.png".');
+        await QRCode.toFile(qrPath, qr, {
+            type: 'png',
+            width: 300,
+            errorCorrectionLevel: 'H'
+        });
         console.log('📱 Abra o WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo e escaneie o QR code.');
     } catch (err) {
-        console.error('❌ Erro ao gerar QR code em PNG:', err);
+        console.error('❌ Erro ao gerar o QR code:', err);
     }
 });
+
+// Endpoint para servir o QR code
+app.get('/qr', (req, res) => {
+    if (fs.existsSync(qrPath)) {
+        res.sendFile(qrPath);
+    } else {
+        res.status(404).send('QR code ainda não gerado.');
+    }
+});
+
 
 // WhatsApp pronto
 client.on('ready', () => {
