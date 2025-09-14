@@ -1,6 +1,9 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode'); // Adicione essa dependência
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 
 app.use(express.json());
@@ -20,12 +23,13 @@ app.use((req, res, next) => {
 
 // Variável para controlar se o WhatsApp está pronto
 let whatsappReady = false;
+let currentQRCode = null;
+let qrString = '';
 
 const client = new Client({
     authStrategy: new LocalAuth({ clientId: "whatsapp-session" }),
     puppeteer: {
         headless: true,
-        // Configurações otimizadas para Railway/Heroku
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -39,7 +43,6 @@ const client = new Client({
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding'
         ],
-        // Usar Chromium do sistema se disponível
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
     }
 });
@@ -56,36 +59,276 @@ const configuracaoProdutos = {
     }
 };
 
-// QR Code
-client.on('qr', (qr) => {
-    console.log('\n🔗 ESCANEIE ESTE QR CODE COM SEU WHATSAPP:');
-    console.log('='.repeat(50));
+// QR Code - Múltiplas opções de visualização
+client.on('qr', async (qr) => {
+    console.log('\n🔗 QR CODE GERADO!');
+    console.log('='.repeat(80));
+    
+    // Salvar o QR code string
+    qrString = qr;
+    
+    // 1. QR Code no terminal (pode não funcionar bem no Railway)
+    console.log('📱 QR Code no terminal:');
     qrcode.generate(qr, { small: true });
-    console.log('='.repeat(50));
-    console.log('📱 Abra o WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo\n');
+    
+    // 2. QR Code como string base64 nos logs
+    try {
+        const qrImage = await QRCode.toDataURL(qr);
+        console.log('\n🖼️ QR CODE BASE64 (copie e cole em um visualizador online):');
+        console.log(qrImage);
+    } catch (err) {
+        console.error('Erro ao gerar QR base64:', err);
+    }
+    
+    // 3. QR Code ASCII nos logs (mais legível)
+    try {
+        const qrAscii = await QRCode.toString(qr, { type: 'terminal', width: 60 });
+        console.log('\n📟 QR CODE ASCII:');
+        console.log(qrAscii);
+    } catch (err) {
+        console.error('Erro ao gerar QR ASCII:', err);
+    }
+    
+    // 4. Salvar QR como imagem PNG
+    try {
+        const qrPath = path.join(__dirname, 'qrcode.png');
+        await QRCode.toFile(qrPath, qr, {
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
+        currentQRCode = qrPath;
+        console.log(`\n💾 QR Code salvo como imagem em: ${qrPath}`);
+    } catch (err) {
+        console.error('Erro ao salvar QR como imagem:', err);
+    }
+    
+    console.log('\n📋 OPÇÕES PARA ESCANEAR:');
+    console.log('1. Acesse: https://seu-app.railway.app/qr para ver o QR code');
+    console.log('2. Acesse: https://seu-app.railway.app/qr-page para uma página completa');
+    console.log('3. Use um decodificador online para o base64 acima');
+    console.log('4. Use o QR ASCII acima se estiver legível');
+    console.log('='.repeat(80));
+    console.log('📱 WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo\n');
 });
 
-// Endpoint para servir o QR code
+// Endpoint para servir o QR code como imagem
 app.get('/qr', (req, res) => {
-    if (fs.existsSync(qrPath)) {
-        res.sendFile(qrPath);
+    if (currentQRCode && fs.existsSync(currentQRCode)) {
+        res.sendFile(path.resolve(currentQRCode));
+    } else if (qrString) {
+        // Se não tiver arquivo, gerar QR code dinamicamente
+        QRCode.toBuffer(qrString, (err, buffer) => {
+            if (err) {
+                res.status(500).send('Erro ao gerar QR code');
+                return;
+            }
+            res.type('png');
+            res.send(buffer);
+        });
     } else {
-        res.status(404).send('QR code ainda não gerado.');
+        res.status(404).send('QR code ainda não foi gerado. Reinicie o bot se necessário.');
     }
 });
 
+// Endpoint para uma página HTML com o QR code
+app.get('/qr-page', (req, res) => {
+    if (!qrString) {
+        return res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>WhatsApp QR Code</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 20px; 
+                        background: #f5f5f5;
+                    }
+                    .container { 
+                        max-width: 500px; 
+                        margin: 0 auto; 
+                        background: white; 
+                        padding: 30px; 
+                        border-radius: 10px; 
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }
+                    h1 { color: #25D366; }
+                    .status { color: #ff6b6b; font-size: 18px; margin: 20px 0; }
+                    .refresh { 
+                        background: #25D366; 
+                        color: white; 
+                        border: none; 
+                        padding: 10px 20px; 
+                        border-radius: 5px; 
+                        cursor: pointer; 
+                        font-size: 16px;
+                    }
+                    .refresh:hover { background: #128C7E; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>📱 WhatsApp Bot</h1>
+                    <div class="status">⏳ QR Code ainda não foi gerado...</div>
+                    <p>O bot está inicializando. Aguarde alguns segundos e atualize a página.</p>
+                    <button class="refresh" onclick="location.reload()">🔄 Atualizar Página</button>
+                </div>
+                <script>
+                    // Auto-refresh a cada 5 segundos até o QR aparecer
+                    setTimeout(() => location.reload(), 5000);
+                </script>
+            </body>
+            </html>
+        `);
+    }
+
+    QRCode.toDataURL(qrString, { width: 300, margin: 2 }, (err, url) => {
+        if (err) {
+            return res.status(500).send('Erro ao gerar QR code');
+        }
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>WhatsApp QR Code</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 20px; 
+                        background: #f5f5f5;
+                    }
+                    .container { 
+                        max-width: 500px; 
+                        margin: 0 auto; 
+                        background: white; 
+                        padding: 30px; 
+                        border-radius: 10px; 
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    }
+                    h1 { color: #25D366; }
+                    .qr-code { 
+                        margin: 20px 0; 
+                        padding: 20px;
+                        background: #f8f9fa;
+                        border-radius: 10px;
+                        border: 2px dashed #25D366;
+                    }
+                    .qr-code img { 
+                        max-width: 100%; 
+                        height: auto; 
+                        border-radius: 8px;
+                    }
+                    .instructions { 
+                        text-align: left; 
+                        background: #e3f2fd; 
+                        padding: 15px; 
+                        border-radius: 8px; 
+                        margin: 20px 0;
+                    }
+                    .instructions ol { margin: 0; padding-left: 20px; }
+                    .instructions li { margin: 8px 0; }
+                    .status { 
+                        color: #25D366; 
+                        font-weight: bold; 
+                        font-size: 18px; 
+                        margin: 20px 0; 
+                    }
+                    .refresh { 
+                        background: #25D366; 
+                        color: white; 
+                        border: none; 
+                        padding: 10px 20px; 
+                        border-radius: 5px; 
+                        cursor: pointer; 
+                        font-size: 16px; 
+                        margin: 10px;
+                    }
+                    .refresh:hover { background: #128C7E; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>📱 WhatsApp Bot</h1>
+                    <div class="status">✅ QR Code pronto para escaneamento!</div>
+                    
+                    <div class="qr-code">
+                        <img src="${url}" alt="QR Code WhatsApp" />
+                    </div>
+                    
+                    <div class="instructions">
+                        <h3>📋 Como escanear:</h3>
+                        <ol>
+                            <li>Abra o WhatsApp no seu celular</li>
+                            <li>Toque no menu (⋮) e selecione "Dispositivos conectados"</li>
+                            <li>Toque em "Conectar um dispositivo"</li>
+                            <li>Aponte a câmera para o QR code acima</li>
+                        </ol>
+                    </div>
+                    
+                    <button class="refresh" onclick="location.reload()">🔄 Atualizar QR Code</button>
+                    <button class="refresh" onclick="window.open('/qr', '_blank')">🖼️ Ver apenas a imagem</button>
+                </div>
+                
+                <script>
+                    // Verificar status a cada 10 segundos
+                    setInterval(async () => {
+                        try {
+                            const response = await fetch('/status');
+                            const data = await response.json();
+                            if (data.whatsappReady) {
+                                document.querySelector('.status').innerHTML = '🟢 WhatsApp conectado com sucesso!';
+                                document.querySelector('.status').style.color = '#4caf50';
+                            }
+                        } catch (err) {
+                            console.log('Erro ao verificar status:', err);
+                        }
+                    }, 10000);
+                </script>
+            </body>
+            </html>
+        `);
+    });
+});
 
 // WhatsApp pronto
 client.on('ready', () => {
     console.log('\n✅ WHATSAPP CONECTADO E PRONTO!');
     console.log(`📞 Conectado como: ${client.info?.pushname || 'Usuário'}`);
     whatsappReady = true;
+    
+    // Limpar o QR code quando conectar
+    currentQRCode = null;
+    qrString = '';
+    
+    // Tentar deletar o arquivo QR se existir
+    const qrPath = path.join(__dirname, 'qrcode.png');
+    if (fs.existsSync(qrPath)) {
+        try {
+            fs.unlinkSync(qrPath);
+            console.log('🗑️ Arquivo QR code removido após conexão');
+        } catch (err) {
+            console.log('⚠️ Não foi possível remover o arquivo QR:', err);
+        }
+    }
 });
 
 // WhatsApp desconectado
 client.on('disconnected', (reason) => {
     console.log('\n❌ WhatsApp desconectado:', reason);
     whatsappReady = false;
+    currentQRCode = null;
+    qrString = '';
 });
 
 // Eventos de debug
@@ -176,7 +419,16 @@ app.get('/', (req, res) => {
         status: 'WhatsApp Bot está rodando!',
         whatsappReady,
         timestamp: new Date().toISOString(),
-        server: 'OK'
+        server: 'OK',
+        qrAvailable: !!qrString,
+        endpoints: {
+            status: '/status',
+            qrImage: '/qr',
+            qrPage: '/qr-page',
+            send: '/send',
+            grupos: '/grupos',
+            test: '/test'
+        }
     });
 });
 
@@ -185,9 +437,13 @@ app.get('/status', (req, res) => {
     res.json({ 
         whatsappReady,
         timestamp: new Date().toISOString(),
-        server: 'OK'
+        server: 'OK',
+        qrAvailable: !!qrString,
+        needsQR: !whatsappReady && !qrString
     });
 });
+
+// [Resto do código permanece igual - endpoints /send, /grupos, /test, etc.]
 
 // Endpoint para processar envio
 app.post('/send', async (req, res) => {
@@ -339,22 +595,30 @@ app.get('/test', (req, res) => {
     res.json({ 
         message: 'Servidor funcionando!',
         timestamp: new Date().toISOString(),
-        produtos: Object.keys(configuracaoProdutos)
+        produtos: Object.keys(configuracaoProdutos),
+        qrAvailable: !!qrString,
+        whatsappReady
     });
 });
 
 // Inicializar cliente
-console.log('Inicializando WhatsApp...');
+console.log('🚀 Inicializando WhatsApp...');
+console.log('📋 Depois que o bot inicializar, acesse:');
+console.log(`   🖼️  /qr-page - Página completa com QR code`);
+console.log(`   📱  /qr - Apenas a imagem do QR code`);
+console.log(`   📊  /status - Status do bot`);
 client.initialize();
 
 // Porta dinâmica para Railway
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`📊 Status: http://localhost:${PORT}/status`);
-    console.log(`🧪 Teste: http://localhost:${PORT}/test`);
-    console.log(`📨 Send: http://localhost:${PORT}/send`);
-    console.log(`👥 Grupos: http://localhost:${PORT}/grupos`);
+    console.log(`\n📡 URLs importantes:`);
+    console.log(`   🏠 Home: https://seu-app.railway.app/`);
+    console.log(`   📱 QR Code: https://seu-app.railway.app/qr-page`);
+    console.log(`   📊 Status: https://seu-app.railway.app/status`);
+    console.log(`   📨 Send: https://seu-app.railway.app/send`);
+    console.log(`   👥 Grupos: https://seu-app.railway.app/grupos`);
     console.log('\n📋 Produtos configurados:');
     Object.entries(configuracaoProdutos).forEach(([produto, config]) => {
         console.log(`   • ${produto} → Grupo: ${config.grupo}`);
