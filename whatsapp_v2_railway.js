@@ -51,11 +51,11 @@ const client = new Client({
 const configuracaoProdutos = {
     "Protocolo Desinflama": {
         link: "https://dramarianasuzuki.com.br/ficha-de-matricula",
-        grupo: "Teste Pd"
+        grupo: "Protocolo Desinflama - Alunas"
     },
     "Protocolo O Fim do Lipedema": {
         link: "https://forms.gle/6kcb4EgmZ5RKe8Mo8",
-        grupo: "Teste OFL"
+        grupo: "O Fim do Lipedema - Alunas"
     }
 };
 
