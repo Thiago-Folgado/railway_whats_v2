@@ -601,7 +601,7 @@ app.get('/test', (req, res) => {
     });
 });
 
-// Inicializar cliente
+// Inicializar clientes
 console.log('🚀 Inicializando WhatsApp...');
 console.log('📋 Depois que o bot inicializar, acesse:');
 console.log(`   🖼️  /qr-page - Página completa com QR code`);
