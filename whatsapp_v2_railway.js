@@ -1,10 +1,310 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+// ============================================
+// NOVO ENDPOINT: Testar validação de número
+// ============================================
+app.post('/validar-numero', async (req, res) => {
+    console.log('\n🔍 Endpoint /validar-numero chamado');
+    
+    if (!whatsappReady) {
+        return res.status(503).json({ 
+            error: 'WhatsApp não está pronto ainda' 
+        });
+    }
+    
+    const { numero } = req.body;
+    
+    if (!numero) {
+        return res.status(400).json({ 
+            error: 'Campo "numero" é obrigatório' 
+        });
+    }
+    
+    try {
+        console.log(`🔍 Testando número: ${numero}`);
+        const numeroFormatado = await formatarNumero(numero);
+        
+        res.json({
+            success: true,
+            numeroOriginal: numero,
+            numeroValidado: numeroFormatado,
+            message: 'Número encontrado no WhatsApp!'
+        });
+        
+    } catch (error) {
+        console.error(`❌ Erro ao validar número:`, error);
+        res.status(404).json({
+            success: false,
+            numeroOriginal: numero,
+            error: error.message
+        });
+    }
+});
+
+// ============================================
+// NOVOS ENDPOINTS: Sistema de Tags
+// ============================================
+
+// Listar todos os contatos com tags
+app.get('/contatos-tags', (req, res) => {
+    console.log('📋 Endpoint /contatos-tags chamado');
+    try {
+        const contatos = listarContatos();
+        res.json({
+            success: true,
+            total: Object.keys(contatos).length,
+            contatos
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Erro ao listar contatos',
+            details: error.message
+        });
+    }
+});
+
+// Buscar contato específico
+app.get('/contato-tag/:numero', (req, res) => {
+    console.log('🔍 Endpoint /contato-tag chamado');
+    try {
+        const numero = req.params.numero.replace(/\D/g, '');
+        const contato = buscarContato(numero);
+        
+        if (!contato) {
+            return res.status(404).json({
+                success: false,
+                error: 'Contato não encontrado'
+            });
+        }
+        
+        res.json({
+            success: true,
+            contato
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Erro ao buscar contato',
+            details: error.message
+        });
+    }
+});
+
+// Filtrar por tag
+app.get('/filtrar-tag/:tag', (req, res) => {
+    console.log('🏷️  Endpoint /filtrar-tag chamado');
+    try {
+        const tag = decodeURIComponent(req.params.tag);
+        const contatos = filtrarPorTag(tag);
+        
+        res.json({
+            success: true,
+            tag,
+            total: contatos.length,
+            contatos
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Erro ao filtrar por tag',
+            details: error.message
+        });
+    }
+});
+
+// Filtrar por produto
+app.get('/filtrar-produto/:produto', (req, res) => {
+    console.log('🎯 Endpoint /filtrar-produto chamado');
+    try {
+        const produto = decodeURIComponent(req.params.produto);
+        const contatos = filtrarPorProduto(produto);
+        
+        res.json({
+            success: true,
+            produto,
+            total: contatos.length,
+            contatos
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Erro ao filtrar por produto',
+            details: error.message
+        });
+    }
+});
+
+// Estatísticas
+app.get('/estatisticas', (req, res) => {
+    console.log('📊 Endpoint /estatisticas chamado');
+    try {
+        const stats = obterEstatisticas();
+        res.json({
+            success: true,
+            estatisticas: stats
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: 'Erro ao obter estatísticas',
+            details: error.message
+        });
+    }
+});
+
+// Dashboard com tags
+app.get('/dashboard-tags', (req, res) => {
+    console.log('🎨 Endpoint /dashboard-tags chamado');
+    try {
+        const contatos = listarContatos();
+        const stats = obterEstatisticas();
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Dashboard - Tags e Contatos</title>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { 
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        padding: 20px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                    }
+                    .container { 
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        background: white;
+                        padding: 30px;
+                        border-radius: 15px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                    }
+                    h1 { 
+                        color: #333;
+                        margin-bottom: 30px;
+                        text-align: center;
+                        font-size: 32px;
+                    }
+                    .stats {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                        gap: 20px;
+                        margin-bottom: 30px;
+                    }
+                    .stat-card {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        padding: 20px;
+                        border-radius: 10px;
+                        color: white;
+                        text-align: center;
+                    }
+                    .stat-number {
+                        font-size: 36px;
+                        font-weight: bold;
+                        margin: 10px 0;
+                    }
+                    .stat-label {
+                        font-size: 14px;
+                        opacity: 0.9;
+                    }
+                    .filtros {
+                        margin: 20px 0;
+                        padding: 15px;
+                        background: #f8f9fa;
+                        border-radius: 8px;
+                        display: flex;
+                        gap: 10px;
+                        flex-wrap: wrap;
+                    }
+                    .filtro-btn {
+                        padding: 8px 16px;
+                        background: white;
+                        border: 2px solid #667eea;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        transition: all 0.3s;
+                    }
+                    .filtro-btn:hover, .filtro-btn.active {
+                        background: #667eea;
+                        color: white;
+                    }
+                    input[type="text"] {
+                        padding: 10px;
+                        border: 2px solid #ddd;
+                        border-radius: 5px;
+                        flex: 1;
+                        min-width: 200px;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 20px;
+                    }
+                    th, td {
+                        padding: 12px;
+                        text-align: left;
+                        border-bottom: 1px solid #ddd;
+                    }
+                    th {
+                        background: #667eea;
+                        color: white;
+                        font-weight: 600;
+                    }
+                    tr:hover {
+                        background: #f5f5f5;
+                    }
+                    .tag {
+                        display: inline-block;
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 12px;
+                        font-weight: bold;
+                    }
+                    .tag.aprovado {
+                        background: #d4edda;
+                        color: #155724;
+                    }
+                    .tag.recusado {
+                        background: #f8d7da;
+                        color: #721c24;
+                    }
+                    .tag.pd { border-left: 4px solid #4CAF50; }
+                    .tag.ofl { border-left: 4px solid #2196F3; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>📊 Dashboard de Contatos e Tags</h1>
+                    
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-label">Total de Contatos</div>
+                            <div class="stat-number">${stats.total}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">✅ Pagamentos Aprovados</div>
+                            <div class="stat-number">${stats.aprovados}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">❌ Pagamentos Recusados</div>
+                            <div class="stat-number">${stats.recusados}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">PD - Protocconst { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const app = express();
+
+// Importa o sistema de tags
+const {
+    adicionarContatoComTag,
+    buscarContato,
+    listarContatos,
+    filtrarPorTag,
+    filtrarPorProduto,
+    filtrarPorStatus,
+    obterEstatisticas
+} = require('./database');
 
 app.use(express.json());
 
@@ -562,7 +862,53 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
         const chat = await client.getChatById(numeroFormatado);
         console.log(`✅ Chat encontrado: ${chat.name || numeroFormatado}`);
         
-        // Busca todas as etiquetas disponíveis
+        // Verifica se o método addLabel existe
+        if (typeof chat.addLabel !== 'function') {
+            console.log(`⚠️  AVISO: Método addLabel não disponível nesta versão do whatsapp-web.js`);
+            console.log(`📋 Métodos disponíveis no chat:`, Object.keys(chat).filter(k => typeof chat[k] === 'function'));
+            
+            // Tenta método alternativo: usando labels diretamente
+            console.log(`🔄 Tentando método alternativo...`);
+            
+            try {
+                const labels = await client.getLabels();
+                console.log(`📋 Total de etiquetas disponíveis: ${labels.length}`);
+                
+                if (labels.length > 0) {
+                    console.log(`📋 Etiquetas existentes:`);
+                    labels.forEach(l => console.log(`   • ${l.name} (ID: ${l.id})`));
+                }
+                
+                const etiqueta = labels.find(l => l.name === nomeEtiqueta);
+                
+                if (!etiqueta) {
+                    console.log(`⚠️  Etiqueta "${nomeEtiqueta}" não existe.`);
+                    console.log(`💡 SOLUÇÃO TEMPORÁRIA: A etiqueta não pôde ser adicionada automaticamente.`);
+                    console.log(`📱 Você precisará adicionar manualmente pelo WhatsApp Business.`);
+                    return false;
+                }
+                
+                console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
+                
+                // Tenta adicionar usando a API interna do Pupetteer
+                if (chat.labels && Array.isArray(chat.labels)) {
+                    chat.labels.push(etiqueta.id);
+                    console.log(`✅ Etiqueta adicionada (método alternativo)`);
+                    return true;
+                }
+                
+                console.log(`⚠️  Não foi possível adicionar automaticamente`);
+                console.log(`💡 RECOMENDAÇÃO: Atualize o whatsapp-web.js para a versão mais recente:`);
+                console.log(`   npm install whatsapp-web.js@latest`);
+                return false;
+                
+            } catch (err) {
+                console.error(`❌ Erro no método alternativo:`, err.message);
+                return false;
+            }
+        }
+        
+        // Método padrão (se addLabel existir)
         const labels = await client.getLabels();
         console.log(`📋 Total de etiquetas disponíveis: ${labels.length}`);
         
@@ -571,8 +917,7 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
             labels.forEach(l => console.log(`   • ${l.name} (ID: ${l.id})`));
         }
         
-        // Procura a etiqueta pelo nome
-        let etiqueta = labels.find(l => l.name === nomeEtiqueta);
+        const etiqueta = labels.find(l => l.name === nomeEtiqueta);
         
         if (!etiqueta) {
             console.log(`⚠️  Etiqueta "${nomeEtiqueta}" não existe.`);
@@ -587,7 +932,6 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
         
         console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
         
-        // Adiciona a etiqueta ao chat
         await chat.addLabel(etiqueta.id);
         console.log(`✅ Etiqueta "${nomeEtiqueta}" adicionada com sucesso!`);
         console.log(`=================================\n`);
@@ -596,6 +940,7 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
     } catch (error) {
         console.error(`\n❌ ERRO ao adicionar etiqueta "${nomeEtiqueta}":`);
         console.error(`   Mensagem: ${error.message}`);
+        console.error(`   Stack: ${error.stack}`);
         
         if (error.message.includes('chat not found')) {
             console.error(`   💡 O chat não foi encontrado. Certifique-se de enviar uma mensagem primeiro.`);
@@ -749,13 +1094,29 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
                 console.log(`🔄 Remoção de outros grupos finalizada (${removeEndTime - removeStartTime}ms)`);
             }
 
-            // Adicionar etiqueta
+            // Adicionar etiqueta (tenta, mas não falha se não conseguir)
             const nomeEtiqueta = `${config.sigla} - Pagamento Aprovado`;
-            console.log(`🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
+            console.log(`🏷️  Tentando adicionar etiqueta: "${nomeEtiqueta}"`);
             const etiquetaStartTime = Date.now();
-            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
+            const etiquetaAdicionada = await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
             const etiquetaEndTime = Date.now();
+            
+            if (!etiquetaAdicionada) {
+                console.log(`⚠️  Etiqueta não pôde ser adicionada (funcionalidade pode não estar disponível)`);
+            }
+            
             console.log(`🏷️  Processo de etiqueta finalizado (${etiquetaEndTime - etiquetaStartTime}ms)`);
+
+            // Salvar no banco de dados com tag
+            console.log(`💾 Salvando contato no banco de dados...`);
+            const contatoSalvo = adicionarContatoComTag(
+                numeroFormatado,
+                Nome,
+                Produto,
+                Status,
+                config.sigla
+            );
+            console.log(`✅ Contato salvo com tag: ${contatoSalvo.tag}`);
 
             const totalTime = Date.now() - startTime;
             console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
@@ -794,13 +1155,29 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
             
             console.log(`✅ Mensagem enviada com sucesso! (${messageEndTime - messageStartTime}ms)`);
             
-            // Adicionar etiqueta
+            // Adicionar etiqueta (tenta, mas não falha se não conseguir)
             const nomeEtiqueta = `${config.sigla} - Pagamento Recusado`;
-            console.log(`🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
+            console.log(`🏷️  Tentando adicionar etiqueta: "${nomeEtiqueta}"`);
             const etiquetaStartTime = Date.now();
-            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
+            const etiquetaAdicionada = await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
             const etiquetaEndTime = Date.now();
+            
+            if (!etiquetaAdicionada) {
+                console.log(`⚠️  Etiqueta não pôde ser adicionada (funcionalidade pode não estar disponível)`);
+            }
+            
             console.log(`🏷️  Processo de etiqueta finalizado (${etiquetaEndTime - etiquetaStartTime}ms)`);
+
+            // Salvar no banco de dados com tag
+            console.log(`💾 Salvando contato no banco de dados...`);
+            const contatoSalvo = adicionarContatoComTag(
+                numeroFormatado,
+                Nome,
+                Produto,
+                Status,
+                config.sigla
+            );
+            console.log(`✅ Contato salvo com tag: ${contatoSalvo.tag}`);
             
             const totalTime = Date.now() - startTime;
             console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
