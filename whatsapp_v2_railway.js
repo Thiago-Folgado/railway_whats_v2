@@ -61,477 +61,176 @@ const configuracaoProdutos = {
     }
 };
 
-// QR Code - Múltiplas opções de visualização
+// QR Code
 client.on('qr', async (qr) => {
     console.log('\n🔗 QR CODE GERADO!');
-    console.log('='.repeat(80));
-    
     qrString = qr;
-    
-    console.log('📱 QR Code no terminal:');
     qrcode.generate(qr, { small: true });
     
     try {
-        const qrImage = await QRCode.toDataURL(qr);
-        console.log('\n🖼️ QR CODE BASE64 (copie e cole em um visualizador online):');
-        console.log(qrImage);
-    } catch (err) {
-        console.error('Erro ao gerar QR base64:', err);
-    }
-    
-    try {
-        const qrAscii = await QRCode.toString(qr, { type: 'terminal', width: 60 });
-        console.log('\n📟 QR CODE ASCII:');
-        console.log(qrAscii);
-    } catch (err) {
-        console.error('Erro ao gerar QR ASCII:', err);
-    }
-    
-    try {
         const qrPath = path.join(__dirname, 'qrcode.png');
-        await QRCode.toFile(qrPath, qr, {
-            width: 300,
-            margin: 2,
-            color: {
-                dark: '#000000',
-                light: '#FFFFFF'
-            }
-        });
+        await QRCode.toFile(qrPath, qr, { width: 300, margin: 2 });
         currentQRCode = qrPath;
-        console.log(`\n💾 QR Code salvo como imagem em: ${qrPath}`);
+        console.log(`💾 QR Code salvo: ${qrPath}`);
     } catch (err) {
-        console.error('Erro ao salvar QR como imagem:', err);
+        console.error('Erro ao salvar QR:', err);
     }
-    
-    console.log('\n📋 OPÇÕES PARA ESCANEAR:');
-    console.log('1. Acesse: https://seu-app.railway.app/qr para ver o QR code');
-    console.log('2. Acesse: https://seu-app.railway.app/qr-page para uma página completa');
-    console.log('3. Use um decodificador online para o base64 acima');
-    console.log('4. Use o QR ASCII acima se estiver legível');
-    console.log('='.repeat(80));
-    console.log('📱 WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo\n');
 });
 
-// Endpoint para servir o QR code como imagem
+// Endpoints QR
 app.get('/qr', (req, res) => {
     if (currentQRCode && fs.existsSync(currentQRCode)) {
         res.sendFile(path.resolve(currentQRCode));
     } else if (qrString) {
         QRCode.toBuffer(qrString, (err, buffer) => {
-            if (err) {
-                res.status(500).send('Erro ao gerar QR code');
-                return;
-            }
-            res.type('png');
-            res.send(buffer);
+            if (err) return res.status(500).send('Erro ao gerar QR code');
+            res.type('png').send(buffer);
         });
     } else {
-        res.status(404).send('QR code ainda não foi gerado. Reinicie o bot se necessário.');
+        res.status(404).send('QR code não gerado');
     }
 });
 
-// Endpoint para uma página HTML com o QR code
 app.get('/qr-page', (req, res) => {
     if (!qrString) {
-        return res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>WhatsApp QR Code</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        text-align: center; 
-                        padding: 20px; 
-                        background: #f5f5f5;
-                    }
-                    .container { 
-                        max-width: 500px; 
-                        margin: 0 auto; 
-                        background: white; 
-                        padding: 30px; 
-                        border-radius: 10px; 
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    }
-                    h1 { color: #25D366; }
-                    .status { color: #ff6b6b; font-size: 18px; margin: 20px 0; }
-                    .refresh { 
-                        background: #25D366; 
-                        color: white; 
-                        border: none; 
-                        padding: 10px 20px; 
-                        border-radius: 5px; 
-                        cursor: pointer; 
-                        font-size: 16px;
-                    }
-                    .refresh:hover { background: #128C7E; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>📱 WhatsApp Bot</h1>
-                    <div class="status">⏳ QR Code ainda não foi gerado...</div>
-                    <p>O bot está inicializando. Aguarde alguns segundos e atualize a página.</p>
-                    <button class="refresh" onclick="location.reload()">🔄 Atualizar Página</button>
-                </div>
-                <script>
-                    setTimeout(() => location.reload(), 5000);
-                </script>
-            </body>
-            </html>
-        `);
+        return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WhatsApp QR</title></head><body style="text-align:center;padding:50px;font-family:Arial"><h1>⏳ Aguardando QR Code...</h1><p>Atualizando em 5s...</p><script>setTimeout(() => location.reload(), 5000);</script></body></html>`);
     }
 
-    QRCode.toDataURL(qrString, { width: 300, margin: 2 }, (err, url) => {
-        if (err) {
-            return res.status(500).send('Erro ao gerar QR code');
-        }
-        
-        res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>WhatsApp QR Code</title>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        text-align: center; 
-                        padding: 20px; 
-                        background: #f5f5f5;
-                    }
-                    .container { 
-                        max-width: 500px; 
-                        margin: 0 auto; 
-                        background: white; 
-                        padding: 30px; 
-                        border-radius: 10px; 
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    }
-                    h1 { color: #25D366; }
-                    .qr-code { 
-                        margin: 20px 0; 
-                        padding: 20px;
-                        background: #f8f9fa;
-                        border-radius: 10px;
-                        border: 2px dashed #25D366;
-                    }
-                    .qr-code img { 
-                        max-width: 100%; 
-                        height: auto; 
-                        border-radius: 8px;
-                    }
-                    .instructions { 
-                        text-align: left; 
-                        background: #e3f2fd; 
-                        padding: 15px; 
-                        border-radius: 8px; 
-                        margin: 20px 0;
-                    }
-                    .instructions ol { margin: 0; padding-left: 20px; }
-                    .instructions li { margin: 8px 0; }
-                    .status { 
-                        color: #25D366; 
-                        font-weight: bold; 
-                        font-size: 18px; 
-                        margin: 20px 0; 
-                    }
-                    .refresh { 
-                        background: #25D366; 
-                        color: white; 
-                        border: none; 
-                        padding: 10px 20px; 
-                        border-radius: 5px; 
-                        cursor: pointer; 
-                        font-size: 16px; 
-                        margin: 10px;
-                    }
-                    .refresh:hover { background: #128C7E; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>📱 WhatsApp Bot</h1>
-                    <div class="status">✅ QR Code pronto para escaneamento!</div>
-                    
-                    <div class="qr-code">
-                        <img src="${url}" alt="QR Code WhatsApp" />
-                    </div>
-                    
-                    <div class="instructions">
-                        <h3>📋 Como escanear:</h3>
-                        <ol>
-                            <li>Abra o WhatsApp no seu celular</li>
-                            <li>Toque no menu (⋮) e selecione "Dispositivos conectados"</li>
-                            <li>Toque em "Conectar um dispositivo"</li>
-                            <li>Aponte a câmera para o QR code acima</li>
-                        </ol>
-                    </div>
-                    
-                    <button class="refresh" onclick="location.reload()">🔄 Atualizar QR Code</button>
-                    <button class="refresh" onclick="window.open('/qr', '_blank')">🖼️ Ver apenas a imagem</button>
-                </div>
-                
-                <script>
-                    setInterval(async () => {
-                        try {
-                            const response = await fetch('/status');
-                            const data = await response.json();
-                            if (data.whatsappReady) {
-                                document.querySelector('.status').innerHTML = '🟢 WhatsApp conectado com sucesso!';
-                                document.querySelector('.status').style.color = '#4caf50';
-                            }
-                        } catch (err) {
-                            console.log('Erro ao verificar status:', err);
-                        }
-                    }, 10000);
-                </script>
-            </body>
-            </html>
-        `);
+    QRCode.toDataURL(qrString, { width: 300 }, (err, url) => {
+        if (err) return res.status(500).send('Erro');
+        res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>WhatsApp QR</title></head><body style="text-align:center;padding:50px;font-family:Arial"><h1>📱 WhatsApp QR Code</h1><img src="${url}" style="border:2px solid #25D366;padding:20px;border-radius:10px"><p><b>Escaneie com WhatsApp Business</b></p></body></html>`);
     });
 });
 
-// WhatsApp pronto
+// WhatsApp eventos
 client.on('ready', () => {
-    console.log('\n' + '🎉'.repeat(20));
-    console.log('✅ WHATSAPP CONECTADO E PRONTO!');
-    console.log(`📞 Conectado como: ${client.info?.pushname || 'Usuário'}`);
-    console.log(`📱 Número: ${client.info?.wid?.user || 'N/A'}`);
-    console.log(`🆔 ID: ${client.info?.wid?._serialized || 'N/A'}`);
-    console.log(`⏰ Conectado em: ${new Date().toISOString()}`);
-    console.log('🎉'.repeat(20) + '\n');
-    
+    console.log('✅ WHATSAPP CONECTADO!');
     whatsappReady = true;
     currentQRCode = null;
     qrString = '';
-    
-    const qrPath = path.join(__dirname, 'qrcode.png');
-    if (fs.existsSync(qrPath)) {
-        try {
-            fs.unlinkSync(qrPath);
-            console.log('🗑️ Arquivo QR code removido após conexão');
-        } catch (err) {
-            console.log('⚠️ Não foi possível remover o arquivo QR:', err);
-        }
-    }
 });
 
-// WhatsApp desconectado
 client.on('disconnected', (reason) => {
-    console.log('\n' + '❌'.repeat(20));
     console.log('❌ WhatsApp desconectado:', reason);
-    console.log(`⏰ Desconectado em: ${new Date().toISOString()}`);
-    console.log('❌'.repeat(20) + '\n');
     whatsappReady = false;
-    currentQRCode = null;
-    qrString = '';
 });
 
-// Eventos de debug
 client.on('auth_failure', (msg) => {
-    console.error('\n' + '🚫'.repeat(20));
     console.error('🚫 FALHA NA AUTENTICAÇÃO:', msg);
-    console.error(`⏰ Erro em: ${new Date().toISOString()}`);
-    console.error('🚫'.repeat(20) + '\n');
 });
 
 client.on('authenticated', () => {
-    console.log('\n' + '🔐'.repeat(15));
-    console.log('🔐 Autenticado com sucesso!');
-    console.log(`⏰ Autenticado em: ${new Date().toISOString()}`);
-    console.log('🔐'.repeat(15) + '\n');
+    console.log('🔐 Autenticado!');
 });
 
 client.on('loading_screen', (percent, message) => {
-    console.log(`⏳ [${new Date().toISOString()}] Carregando WhatsApp: ${percent}% - ${message}`);
-    
-    if (message.includes('Syncing messages') || message.includes('messages')) {
-        console.log('📱💬 DETECTADO: Sincronização de mensagens - pode demorar para contas com muitas conversas');
-    }
-    if (message.includes('Syncing chats') || message.includes('chats')) {
-        console.log('📱💬 DETECTADO: Sincronização de chats - pode demorar para contas com muitas conversas');
-    }
-    if (message.includes('Loading') && percent < 50) {
-        console.log('📱⚠️ AVISO: Carregamento inicial pode demorar vários minutos para contas com histórico extenso');
-    }
-    if (percent > 80) {
-        console.log('📱🚀 Quase pronto! Finalizando sincronização...');
-    }
+    console.log(`⏳ Carregando: ${percent}% - ${message}`);
 });
 
-client.on('change_state', state => {
-    console.log(`🔄 [${new Date().toISOString()}] Estado mudou para: ${state}`);
-    
-    if (state === 'OPENING') {
-        console.log('📱🔓 WhatsApp iniciando...');
-    }
-    if (state === 'PAIRING') {
-        console.log('📱🔗 Pareando dispositivo...');
-    }
-    if (state === 'UNPAIRED') {
-        console.log('📱❌ Dispositivo não pareado');
-    }
-    if (state === 'TIMEOUT') {
-        console.log('📱⏰ TIMEOUT detectado - possível problema com contas que têm muitas conversas');
-    }
-});
-
-client.on('change_battery', (batteryInfo) => {
-    console.log(`🔋 [${new Date().toISOString()}] Bateria do celular: ${batteryInfo.battery}% (${batteryInfo.plugged ? 'Carregando' : 'Descarregando'})`);
-});
-
-// ============================================
-// FUNÇÃO: Verificar número no WhatsApp
-// ============================================
+// Verificar número no WhatsApp
 async function verificarNumeroWhatsApp(numero) {
-    console.log(`\n🔍 === VERIFICAÇÃO DE NÚMERO ===`);
-    console.log(`📱 Número recebido: ${numero}`);
+    console.log(`\n🔍 Verificando número: ${numero}`);
     
     const numeroLimpo = numero.replace(/\D/g, '');
-    console.log(`🧹 Número limpo: ${numeroLimpo}`);
-    
     let numeroBase = numeroLimpo.startsWith('55') ? numeroLimpo : '55' + numeroLimpo;
-    console.log(`🇧🇷 Número com código do país: ${numeroBase}`);
+    
     console.log(`📏 Tamanho: ${numeroBase.length} dígitos`);
     
     if (numeroBase.length === 13) {
         const ddd = numeroBase.substring(2, 4);
         const numeroSemDDD = numeroBase.substring(4);
-        
-        console.log(`📍 DDD: ${ddd}`);
-        console.log(`📞 Número sem DDD: ${numeroSemDDD} (${numeroSemDDD.length} dígitos)`);
-        
         const formato8Digitos = '55' + ddd + numeroSemDDD.substring(1);
-        console.log(`\n🔄 Tentativa 1: Formato 8 dígitos (12 total)`);
-        console.log(`   Número: ${formato8Digitos}`);
         
+        console.log(`🔄 Tentando 8 dígitos: ${formato8Digitos}`);
         try {
             const resultado8 = await client.getNumberId(formato8Digitos);
             if (resultado8) {
-                console.log(`   ✅ ENCONTRADO! Número registrado com 8 dígitos`);
-                console.log(`   📱 ID WhatsApp: ${resultado8._serialized}`);
-                console.log(`=================================\n`);
+                console.log(`✅ Encontrado com 8 dígitos!`);
                 return formato8Digitos + '@c.us';
             }
         } catch (err) {
-            console.log(`   ❌ Não encontrado com 8 dígitos`);
+            console.log(`❌ Não encontrado com 8 dígitos`);
         }
         
-        console.log(`\n🔄 Tentativa 2: Formato 9 dígitos (13 total)`);
-        console.log(`   Número: ${numeroBase}`);
-        
+        console.log(`🔄 Tentando 9 dígitos: ${numeroBase}`);
         try {
             const resultado9 = await client.getNumberId(numeroBase);
             if (resultado9) {
-                console.log(`   ✅ ENCONTRADO! Número registrado com 9 dígitos`);
-                console.log(`   📱 ID WhatsApp: ${resultado9._serialized}`);
-                console.log(`=================================\n`);
+                console.log(`✅ Encontrado com 9 dígitos!`);
                 return numeroBase + '@c.us';
             }
         } catch (err) {
-            console.log(`   ❌ Não encontrado com 9 dígitos`);
+            console.log(`❌ Não encontrado com 9 dígitos`);
         }
     }
     
     if (numeroBase.length === 12) {
-        console.log(`\n🔄 Tentativa: Formato padrão (12 dígitos)`);
-        console.log(`   Número: ${numeroBase}`);
-        
+        console.log(`🔄 Tentando formato padrão: ${numeroBase}`);
         try {
             const resultado = await client.getNumberId(numeroBase);
             if (resultado) {
-                console.log(`   ✅ ENCONTRADO!`);
-                console.log(`   📱 ID WhatsApp: ${resultado._serialized}`);
-                console.log(`=================================\n`);
+                console.log(`✅ Encontrado!`);
                 return numeroBase + '@c.us';
             }
         } catch (err) {
-            console.log(`   ❌ Número não encontrado`);
+            console.log(`❌ Não encontrado`);
         }
     }
     
-    console.log(`\n❌ NÚMERO NÃO ENCONTRADO EM NENHUM FORMATO`);
-    console.log(`=================================\n`);
+    console.log(`❌ Número não encontrado no WhatsApp\n`);
     return null;
 }
 
-// ============================================
-// FUNÇÃO: Formatar número
-// ============================================
 async function formatarNumero(numero) {
-    console.log(`🔍 Iniciando verificação do número: ${numero}`);
-    
     const numeroValido = await verificarNumeroWhatsApp(numero);
-    
     if (!numeroValido) {
-        throw new Error(`❌ Número não encontrado no WhatsApp: ${numero}`);
+        throw new Error(`Número não encontrado no WhatsApp: ${numero}`);
     }
-    
-    console.log(`✅ Número validado e formatado: ${numeroValido}`);
     return numeroValido;
 }
 
-// ============================================
-// FUNÇÃO: Adicionar etiqueta ao contato
-// ============================================
+// Adicionar etiqueta
 async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
     try {
-        console.log(`\n🏷️  === ADICIONANDO ETIQUETA ===`);
-        console.log(`📱 Número: ${numeroFormatado}`);
-        console.log(`🏷️  Etiqueta desejada: "${nomeEtiqueta}"`);
+        console.log(`\n🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
         
         const chat = await client.getChatById(numeroFormatado);
-        console.log(`✅ Chat encontrado: ${chat.name || numeroFormatado}`);
+        console.log(`✅ Chat encontrado`);
         
         if (typeof chat.addLabel !== 'function') {
-            console.log(`⚠️  AVISO: Método addLabel não disponível nesta versão do whatsapp-web.js`);
-            console.log(`💡 SOLUÇÃO: Atualize o whatsapp-web.js:`);
-            console.log(`   npm install whatsapp-web.js@latest`);
-            console.log(`=================================\n`);
+            console.log(`⚠️  Método addLabel não disponível`);
+            console.log(`💡 Execute: npm install whatsapp-web.js@latest`);
             return false;
         }
         
         const labels = await client.getLabels();
-        console.log(`📋 Total de etiquetas disponíveis: ${labels.length}`);
+        console.log(`📋 Etiquetas disponíveis: ${labels.length}`);
         
         if (labels.length > 0) {
-            console.log(`📋 Etiquetas existentes:`);
-            labels.forEach(l => console.log(`   • ${l.name} (ID: ${l.id})`));
+            labels.forEach(l => console.log(`   • ${l.name}`));
         }
         
         const etiqueta = labels.find(l => l.name === nomeEtiqueta);
         
         if (!etiqueta) {
-            console.log(`\n⚠️  Etiqueta "${nomeEtiqueta}" não existe.`);
-            console.log(`💡 IMPORTANTE: Crie esta etiqueta manualmente no WhatsApp Business:`);
-            console.log(`   1. Abra WhatsApp Business no celular`);
-            console.log(`   2. Configurações > Ferramentas comerciais > Etiquetas`);
-            console.log(`   3. Crie a etiqueta: "${nomeEtiqueta}"`);
-            console.log(`=================================\n`);
+            console.log(`\n⚠️  Etiqueta "${nomeEtiqueta}" não existe!`);
+            console.log(`💡 Crie no WhatsApp Business:`);
+            console.log(`   Configurações > Ferramentas comerciais > Etiquetas`);
             return false;
         }
         
-        console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
-        
+        console.log(`✅ Etiqueta encontrada: "${etiqueta.name}"`);
         await chat.addLabel(etiqueta.id);
-        console.log(`✅ Etiqueta "${nomeEtiqueta}" adicionada com sucesso!`);
-        console.log(`=================================\n`);
+        console.log(`✅ Etiqueta adicionada com sucesso!\n`);
         return true;
         
     } catch (error) {
-        console.error(`\n❌ ERRO ao adicionar etiqueta "${nomeEtiqueta}":`);
-        console.error(`   Mensagem: ${error.message}`);
-        console.error(`   Stack: ${error.stack}`);
-        console.error(`=================================\n`);
+        console.error(`❌ Erro ao adicionar etiqueta: ${error.message}\n`);
         return false;
     }
 }
 
-// Função para encontrar grupo por nome
+// Encontrar grupo
 async function encontrarGrupo(nomeGrupo) {
     try {
         const chats = await client.getChats();
@@ -542,7 +241,7 @@ async function encontrarGrupo(nomeGrupo) {
     }
 }
 
-// Função para adicionar ao grupo
+// Adicionar ao grupo
 async function adicionarAoGrupo(numeroFormatado, nomeGrupo) {
     try {
         const grupo = await encontrarGrupo(nomeGrupo);
@@ -550,20 +249,16 @@ async function adicionarAoGrupo(numeroFormatado, nomeGrupo) {
             console.log(`❌ Grupo "${nomeGrupo}" não encontrado`);
             return false;
         }
-
         await grupo.addParticipants([numeroFormatado]);
-        console.log(`✅ Contato adicionado ao grupo: ${nomeGrupo}`);
+        console.log(`✅ Adicionado ao grupo: ${nomeGrupo}`);
         return true;
     } catch (error) {
-        console.error(`❌ Erro ao adicionar ao grupo "${nomeGrupo}":`, error);
-        if (error?.data) {
-            console.error('📄 Detalhes do erro:', JSON.stringify(error.data, null, 2));
-        }
+        console.error(`❌ Erro ao adicionar ao grupo:`, error);
         return false;
     }
 }
 
-// Função para remover de outros grupos
+// Remover de outros grupos
 async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
     try {
         const chats = await client.getChats();
@@ -579,97 +274,69 @@ async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
 
             const estaNoGrupo = grupo.participants.some(p => p.id._serialized === numeroFormatado);
             if (estaNoGrupo) {
-                console.log(`🔄 Removendo ${numeroFormatado} do grupo "${grupo.name}"`);
+                console.log(`🔄 Removendo do grupo "${grupo.name}"`);
                 await grupo.removeParticipants([numeroFormatado]);
-                console.log(`✅ Removido do grupo: ${grupo.name}`);
+                console.log(`✅ Removido`);
             }
         }
         return true;
     } catch (error) {
-        console.error(`❌ Erro ao remover ${numeroFormatado} de outros grupos:`, error);
+        console.error(`❌ Erro ao remover de grupos:`, error);
         return false;
     }
 }
 
-// Endpoint de status
+// Endpoints
 app.get('/', (req, res) => {
     res.json({ 
-        status: 'WhatsApp Bot está rodando!',
+        status: 'WhatsApp Bot rodando',
         whatsappReady,
-        timestamp: new Date().toISOString(),
-        server: 'OK',
-        qrAvailable: !!qrString,
-        endpoints: {
-            status: '/status',
-            qrImage: '/qr',
-            qrPage: '/qr-page',
-            send: '/send',
-            grupos: '/grupos',
-            test: '/test'
-        }
+        timestamp: new Date().toISOString()
     });
 });
 
 app.get('/status', (req, res) => {
-    console.log('📊 Endpoint /status chamado');
     res.json({ 
         whatsappReady,
-        timestamp: new Date().toISOString(),
-        server: 'OK',
-        qrAvailable: !!qrString,
-        needsQR: !whatsappReady && !qrString
+        timestamp: new Date().toISOString()
     });
 });
 
-// ============================================
-// ENDPOINT /SEND
-// ============================================
+// Endpoint principal
 app.post('/send', async (req, res) => {
     const startTime = Date.now();
-    console.log('\n' + '📨'.repeat(30));
+    console.log('\n' + '='.repeat(50));
     console.log('📨 ENDPOINT /SEND CHAMADO');
-    console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
-    console.log('📨'.repeat(30));
+    console.log('='.repeat(50));
     
     if (!whatsappReady) {
-        console.log('❌ ERRO: WhatsApp não está pronto');
-        return res.status(503).json({ 
-            error: 'WhatsApp não está pronto ainda' 
-        });
+        return res.status(503).json({ error: 'WhatsApp não está pronto' });
     }
     
     const { Nome, Numero, Produto, Status } = req.body;
     
-    console.log('📋 DADOS RECEBIDOS:');
-    console.log(`   👤 Nome: ${Nome || 'NÃO INFORMADO'}`);
-    console.log(`   📱 Numero: ${Numero || 'NÃO INFORMADO'}`);
-    console.log(`   🎯 Produto: ${Produto || 'NÃO INFORMADO'}`);
-    console.log(`   📊 Status: ${Status || 'NÃO INFORMADO'}`);
+    console.log(`👤 Nome: ${Nome}`);
+    console.log(`📱 Numero: ${Numero}`);
+    console.log(`🎯 Produto: ${Produto}`);
+    console.log(`📊 Status: ${Status}`);
     
     if (!Nome || !Numero || !Produto || !Status) {
-        console.log('❌ ERRO: Dados incompletos');
-        return res.status(400).json({ 
-            error: 'Campos obrigatórios: Nome, Numero, Produto, Status' 
-        });
+        return res.status(400).json({ error: 'Campos obrigatórios faltando' });
     }
 
     try {
-        console.log(`\n🔄 Validando e formatando número...`);
         const numeroFormatado = await formatarNumero(Numero);
-        console.log(`✅ Número formatado: ${numeroFormatado}`);
+        console.log(`✅ Número validado: ${numeroFormatado}`);
+
+        const config = configuracaoProdutos[Produto];
+        if (!config) {
+            return res.status(400).json({ error: 'Produto não reconhecido' });
+        }
 
         if (Status === "Pagamento Aprovado") {
-            console.log('\n✅ STATUS: PAGAMENTO APROVADO');
+            console.log('\n✅ PAGAMENTO APROVADO\n');
             
-            const config = configuracaoProdutos[Produto];
-            if (!config) {
-                console.log('❌ ERRO: Produto não reconhecido:', Produto);
-                return res.status(400).json({ 
-                    error: 'Produto não reconhecido' 
-                });
-            }
-            
-            const mensagemOnboarding = `**Oi, Seja muito bem-vinda ao ${Produto}! 💛**
+            const mensagem = `**Oi, Seja muito bem-vinda ao ${Produto}! 💛**
 
 Estamos muito felizes em ter você com a gente nessa jornada. 🥰
 Agora, quero te explicar os **próximos passos** para que você já comece com tudo:
@@ -681,4 +348,133 @@ Agora, quero te explicar os **próximos passos** para que você já comece com t
 
 2️⃣ **Você será adicionada ao grupo de alunas no WhatsApp e removida do grupo anterior.** Esse é o espaço onde acontecem os avisos e monitorias semanais.
 
-3️⃣ **Responda
+3️⃣ **Responda a sua ficha de matrícula.**
+Ela é essencial para que possamos conhecer melhor sua rotina, suas necessidades e te acompanhar de forma mais personalizada. 👇
+
+📝 ${config.link}
+
+**✨ Pronto!** Agora é só começar a assistir às aulas e dar o primeiro passo rumo à transformação que você merece.
+
+Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
+
+            console.log('📤 Enviando mensagem...');
+            await client.sendMessage(numeroFormatado, mensagem);
+            console.log('✅ Mensagem enviada!');
+            
+            console.log('👥 Adicionando ao grupo...');
+            const adicionado = await adicionarAoGrupo(numeroFormatado, config.grupo);
+            
+            if (adicionado) {
+                console.log('🔄 Removendo de outros grupos...');
+                await removerDeOutrosGrupos(numeroFormatado, config.grupo);
+            }
+
+            const nomeEtiqueta = `${config.sigla} - Pagamento Aprovado`;
+            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
+
+            const totalTime = Date.now() - startTime;
+            console.log(`\n🎉 CONCLUÍDO em ${totalTime}ms\n`);
+
+            res.json({ 
+                success: true,
+                message: 'Onboarding enviado',
+                numeroFormatado,
+                produto: Produto,
+                tag: nomeEtiqueta
+            });
+
+        } else if (Status === "Pagamento Recusado") {
+            console.log('\n❌ PAGAMENTO RECUSADO\n');
+            
+            const mensagem = `Boa noite ${Nome}! Tudo bem?\nMe chamo Isa, gostaria de te ajudar finalizar seu cadastro no ${Produto}.`;
+            
+            console.log('📤 Enviando mensagem...');
+            await client.sendMessage(numeroFormatado, mensagem);
+            console.log('✅ Mensagem enviada!');
+
+            const nomeEtiqueta = `${config.sigla} - Pagamento Recusado`;
+            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
+
+            const totalTime = Date.now() - startTime;
+            console.log(`\n🎉 CONCLUÍDO em ${totalTime}ms\n`);
+            
+            res.json({ 
+                success: true,
+                message: 'Mensagem de reprovação enviada',
+                numeroFormatado,
+                produto: Produto,
+                tag: nomeEtiqueta
+            });
+
+        } else {
+            return res.status(400).json({ error: 'Status inválido' });
+        }
+        
+    } catch (err) {
+        console.error('\n❌ ERRO:', err.message);
+        res.status(500).json({ 
+            error: 'Erro ao processar',
+            details: err.message 
+        });
+    }
+});
+
+// Listar grupos
+app.get('/grupos', async (req, res) => {
+    if (!whatsappReady) {
+        return res.status(503).json({ error: 'WhatsApp não está pronto' });
+    }
+    
+    try {
+        const chats = await client.getChats();
+        const grupos = chats.filter(chat => chat.isGroup).map(g => ({
+            nome: g.name,
+            participantes: g.participants?.length || 0
+        }));
+        
+        res.json({ grupos, total: grupos.length });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/test', (req, res) => {
+    res.json({ 
+        message: 'Servidor OK',
+        whatsappReady,
+        produtos: Object.keys(configuracaoProdutos)
+    });
+});
+
+// Inicializar
+console.log('🚀 Inicializando WhatsApp...');
+client.initialize();
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor rodando na porta ${PORT}`);
+    console.log(`📱 QR Code: /qr-page`);
+    console.log(`📊 Status: /status`);
+});
+
+// Tratamento de erros
+process.on('uncaughtException', (error) => {
+    console.error('🚨 EXCEÇÃO:', error.message);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('🚨 PROMISE REJEITADA:', reason);
+});
+
+process.on('SIGINT', () => {
+    console.log('🔄 Encerrando...');
+    client.destroy();
+    process.exit(0);
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy',
+        timestamp: new Date().toISOString()
+    });
+});
