@@ -528,13 +528,6 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
     try {
         console.log(`\n🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
         
-        const chat = await client.getChatById(numeroFormatado);
-        
-        if (typeof chat.addLabel !== 'function') {
-            console.log(`⚠️  Método addLabel não disponível`);
-            return false;
-        }
-        
         const labels = await client.getLabels();
         const etiqueta = labels.find(l => l.name === nomeEtiqueta);
         
@@ -543,8 +536,14 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
             return false;
         }
         
-        await chat.addLabel(etiqueta.id);
-        console.log(`✅ Etiqueta adicionada!\n`);
+        console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
+        
+        // Usar pupPage diretamente para executar código no navegador
+        await client.pupPage.evaluate((chatId, labelId) => {
+            return window.Store.Label.addOrRemoveLabels([labelId], [window.Store.Chat.get(chatId)]);
+        }, numeroFormatado.replace('@c.us', ''), etiqueta.id);
+        
+        console.log(`✅ Etiqueta adicionada com sucesso!\n`);
         return true;
         
     } catch (error) {
