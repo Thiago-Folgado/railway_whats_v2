@@ -819,6 +819,36 @@ app.post('/validar-numero', async (req, res) => {
     }
 });
 
+
+app.get('/debug-labels', async (req, res) => {
+    if (!whatsappReady) {
+        return res.status(503).json({ error: 'WhatsApp não pronto' });
+    }
+    
+    try {
+        // Testar labels
+        const labels = await client.getLabels();
+        
+        // Testar um chat qualquer
+        const chats = await client.getChats();
+        const primeiroChat = chats.find(c => !c.isGroup);
+        
+        const info = {
+            labelsDisponiveis: labels.map(l => ({ id: l.id, nome: l.name })),
+            totalLabels: labels.length,
+            chatTeste: primeiroChat ? {
+                id: primeiroChat.id._serialized,
+                temAddLabel: typeof primeiroChat.addLabel === 'function',
+                metodosDisponiveis: Object.keys(primeiroChat).filter(k => typeof primeiroChat[k] === 'function')
+            } : null
+        };
+        
+        res.json(info);
+    } catch (error) {
+        res.status(500).json({ error: error.message, stack: error.stack });
+    }
+});
+
 console.log('🚀 Inicializando WhatsApp...');
 client.initialize();
 
@@ -848,3 +878,5 @@ app.get('/health', (req, res) => {
         uptime: process.uptime()
     });
 });
+
+
