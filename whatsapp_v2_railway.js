@@ -875,7 +875,7 @@ console.log(`   📊  /status - Status do bot`);
 console.log(`   🔍  /validar-numero - Testar validação de número`);
 client.initialize();
 
-// Porta dinâmica para Railway
+// Porta dinâmica para Railways
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
