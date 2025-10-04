@@ -527,48 +527,69 @@ async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
 async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
     try {
         console.log(`\n🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
+        console.log(`📱 Chat ID: ${numeroFormatado}`);
         
         const labels = await client.getLabels();
         const etiqueta = labels.find(l => l.name === nomeEtiqueta);
         
         if (!etiqueta) {
-            console.log(`⚠️  Etiqueta "${nomeEtiqueta}" não existe no WhatsApp`);
+            console.log(`⚠️  Etiqueta "${nomeEtiqueta}" não existe`);
             return false;
         }
         
         console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
         
-        // Método alternativo: usar a API correta do WhatsApp Web
-        await client.pupPage.evaluate(async (chatId, labelId) => {
-            const chat = await window.Store.Chat.get(chatId);
-            if (!chat) throw new Error('Chat não encontrado');
-            
-            const label = window.Store.Label.get(labelId);
-            if (!label) throw new Error('Label não encontrada');
-            
-            await window.Store.Label.addOrRemoveLabels([label], [chat]);
-        }, numeroFormatado, etiqueta.id);
+        // Verificar se o chat existe e testar aplicação
+        const resultado = await client.pupPage.evaluate(async (chatId, labelId, labelName) => {
+            try {
+                // Buscar o chat
+                const chat = await window.Store.Chat.get(chatId);
+                if (!chat) {
+                    return { success: false, error: 'Chat não encontrado' };
+                }
+                
+                // Buscar a label
+                const label = window.Store.Label.get(labelId);
+                if (!label) {
+                    return { success: false, error: 'Label não encontrada no Store' };
+                }
+                
+                // Tentar adicionar
+                await window.Store.Label.addOrRemoveLabels([label], [chat]);
+                
+                // Verificar se foi aplicada
+                const chatAtualizado = await window.Store.Chat.get(chatId);
+                const temLabel = chatAtualizado.labels && chatAtualizado.labels.includes(labelId);
+                
+                return { 
+                    success: true, 
+                    labelAplicada: temLabel,
+                    labelsAtuais: chatAtualizado.labels || []
+                };
+            } catch (err) {
+                return { success: false, error: err.message };
+            }
+        }, numeroFormatado, etiqueta.id, nomeEtiqueta);
         
-        console.log(`✅ Etiqueta adicionada com sucesso!\n`);
-        return true;
+        console.log(`📊 Resultado:`, JSON.stringify(resultado, null, 2));
+        
+        if (resultado.success && resultado.labelAplicada) {
+            console.log(`✅ Etiqueta confirmada no chat!\n`);
+            return true;
+        } else if (resultado.success && !resultado.labelAplicada) {
+            console.log(`⚠️  Código executou mas etiqueta não foi aplicada\n`);
+            return false;
+        } else {
+            console.log(`❌ Falha: ${resultado.error}\n`);
+            return false;
+        }
         
     } catch (error) {
         console.error(`❌ Erro ao adicionar etiqueta: ${error.message}\n`);
-        
-        // Fallback: tentar método alternativo
-        try {
-            console.log(`🔄 Tentando método alternativo...`);
-            await client.pupPage.evaluate((chatId, labelId) => {
-                window.Store.Label.addLabelToChat(labelId, chatId);
-            }, numeroFormatado, etiqueta.id);
-            console.log(`✅ Etiqueta adicionada (método alternativo)!\n`);
-            return true;
-        } catch (err2) {
-            console.error(`❌ Método alternativo também falhou: ${err2.message}\n`);
-            return false;
-        }
+        return false;
     }
 }
+
 app.get('/', (req, res) => {
     res.json({ 
         status: 'WhatsApp Bot está rodando!',
