@@ -1,6 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const QRCode = require('qrcode'); // Adicione essa dependência
+const QRCode = require('qrcode');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -64,14 +64,11 @@ client.on('qr', async (qr) => {
     console.log('\n🔗 QR CODE GERADO!');
     console.log('='.repeat(80));
     
-    // Salvar o QR code string
     qrString = qr;
     
-    // 1. QR Code no terminal (pode não funcionar bem no Railway)
     console.log('📱 QR Code no terminal:');
     qrcode.generate(qr, { small: true });
     
-    // 2. QR Code como string base64 nos logs
     try {
         const qrImage = await QRCode.toDataURL(qr);
         console.log('\n🖼️ QR CODE BASE64 (copie e cole em um visualizador online):');
@@ -80,7 +77,6 @@ client.on('qr', async (qr) => {
         console.error('Erro ao gerar QR base64:', err);
     }
     
-    // 3. QR Code ASCII nos logs (mais legível)
     try {
         const qrAscii = await QRCode.toString(qr, { type: 'terminal', width: 60 });
         console.log('\n📟 QR CODE ASCII:');
@@ -89,7 +85,6 @@ client.on('qr', async (qr) => {
         console.error('Erro ao gerar QR ASCII:', err);
     }
     
-    // 4. Salvar QR como imagem PNG
     try {
         const qrPath = path.join(__dirname, 'qrcode.png');
         await QRCode.toFile(qrPath, qr, {
@@ -120,7 +115,6 @@ app.get('/qr', (req, res) => {
     if (currentQRCode && fs.existsSync(currentQRCode)) {
         res.sendFile(path.resolve(currentQRCode));
     } else if (qrString) {
-        // Se não tiver arquivo, gerar QR code dinamicamente
         QRCode.toBuffer(qrString, (err, buffer) => {
             if (err) {
                 res.status(500).send('Erro ao gerar QR code');
@@ -181,7 +175,6 @@ app.get('/qr-page', (req, res) => {
                     <button class="refresh" onclick="location.reload()">🔄 Atualizar Página</button>
                 </div>
                 <script>
-                    // Auto-refresh a cada 5 segundos até o QR aparecer
                     setTimeout(() => location.reload(), 5000);
                 </script>
             </body>
@@ -281,7 +274,6 @@ app.get('/qr-page', (req, res) => {
                 </div>
                 
                 <script>
-                    // Verificar status a cada 10 segundos
                     setInterval(async () => {
                         try {
                             const response = await fetch('/status');
@@ -312,12 +304,9 @@ client.on('ready', () => {
     console.log('🎉'.repeat(20) + '\n');
     
     whatsappReady = true;
-    
-    // Limpar o QR code quando conectar
     currentQRCode = null;
     qrString = '';
     
-    // Tentar deletar o arquivo QR se existir
     const qrPath = path.join(__dirname, 'qrcode.png');
     if (fs.existsSync(qrPath)) {
         try {
@@ -340,7 +329,7 @@ client.on('disconnected', (reason) => {
     qrString = '';
 });
 
-// Eventos de debug DETALHADOS
+// Eventos de debug
 client.on('auth_failure', (msg) => {
     console.error('\n' + '🚫'.repeat(20));
     console.error('🚫 FALHA NA AUTENTICAÇÃO:', msg);
@@ -358,7 +347,6 @@ client.on('authenticated', () => {
 client.on('loading_screen', (percent, message) => {
     console.log(`⏳ [${new Date().toISOString()}] Carregando WhatsApp: ${percent}% - ${message}`);
     
-    // LOGS ESPECÍFICOS PARA CONTAS COM MUITAS CONVERSAS
     if (message.includes('Syncing messages') || message.includes('messages')) {
         console.log('📱💬 DETECTADO: Sincronização de mensagens - pode demorar para contas com muitas conversas');
     }
@@ -373,8 +361,6 @@ client.on('loading_screen', (percent, message) => {
     }
 });
 
-
-// Novos eventos para detectar problemas
 client.on('change_state', state => {
     console.log(`🔄 [${new Date().toISOString()}] Estado mudou para: ${state}`);
     
@@ -396,14 +382,109 @@ client.on('change_battery', (batteryInfo) => {
     console.log(`🔋 [${new Date().toISOString()}] Bateria do celular: ${batteryInfo.battery}% (${batteryInfo.plugged ? 'Carregando' : 'Descarregando'})`);
 });
 
-
-// Função para formatar número
-function formatarNumero(numero) {
-    let numeroLimpo = numero.replace(/\D/g, '');
-    if (!numeroLimpo.startsWith('55')) {
-        numeroLimpo = '55' + numeroLimpo;
+// ============================================
+// NOVA FUNÇÃO: Verificar número no WhatsApp
+// ============================================
+async function verificarNumeroWhatsApp(numero) {
+    console.log(`\n🔍 === VERIFICAÇÃO DE NÚMERO ===`);
+    console.log(`📱 Número recebido: ${numero}`);
+    
+    // Remove caracteres não numéricos
+    const numeroLimpo = numero.replace(/\D/g, '');
+    console.log(`🧹 Número limpo: ${numeroLimpo}`);
+    
+    // Garante que começa com 55
+    let numeroBase = numeroLimpo.startsWith('55') ? numeroLimpo : '55' + numeroLimpo;
+    console.log(`🇧🇷 Número com código do país: ${numeroBase}`);
+    console.log(`📏 Tamanho: ${numeroBase.length} dígitos`);
+    
+    // Se tem 13 dígitos (possível 9 extra)
+    if (numeroBase.length === 13) {
+        const ddd = numeroBase.substring(2, 4);
+        const numeroSemDDD = numeroBase.substring(4);
+        
+        console.log(`📍 DDD: ${ddd}`);
+        console.log(`📞 Número sem DDD: ${numeroSemDDD} (${numeroSemDDD.length} dígitos)`);
+        
+        // Tenta primeiro com 8 dígitos (remove o primeiro dígito, possivelmente o 9 extra)
+        const formato8Digitos = '55' + ddd + numeroSemDDD.substring(1);
+        console.log(`\n🔄 Tentativa 1: Formato 8 dígitos (12 total)`);
+        console.log(`   Número: ${formato8Digitos}`);
+        
+        try {
+            const resultado8 = await client.getNumberId(formato8Digitos);
+            if (resultado8) {
+                console.log(`   ✅ ENCONTRADO! Número registrado com 8 dígitos`);
+                console.log(`   📱 ID WhatsApp: ${resultado8._serialized}`);
+                console.log(`=================================\n`);
+                return formato8Digitos + '@c.us';
+            }
+        } catch (err) {
+            console.log(`   ❌ Não encontrado com 8 dígitos`);
+            console.log(`   💡 Motivo: ${err.message || 'Número não existe no WhatsApp'}`);
+        }
+        
+        // Se não encontrou com 8, tenta com 9 dígitos original
+        console.log(`\n🔄 Tentativa 2: Formato 9 dígitos (13 total)`);
+        console.log(`   Número: ${numeroBase}`);
+        
+        try {
+            const resultado9 = await client.getNumberId(numeroBase);
+            if (resultado9) {
+                console.log(`   ✅ ENCONTRADO! Número registrado com 9 dígitos`);
+                console.log(`   📱 ID WhatsApp: ${resultado9._serialized}`);
+                console.log(`=================================\n`);
+                return numeroBase + '@c.us';
+            }
+        } catch (err) {
+            console.log(`   ❌ Não encontrado com 9 dígitos`);
+            console.log(`   💡 Motivo: ${err.message || 'Número não existe no WhatsApp'}`);
+        }
     }
-    return numeroLimpo + '@c.us';
+    
+    // Se tem 12 dígitos, já está no formato padrão
+    if (numeroBase.length === 12) {
+        console.log(`\n🔄 Tentativa: Formato padrão (12 dígitos)`);
+        console.log(`   Número: ${numeroBase}`);
+        
+        try {
+            const resultado = await client.getNumberId(numeroBase);
+            if (resultado) {
+                console.log(`   ✅ ENCONTRADO!`);
+                console.log(`   📱 ID WhatsApp: ${resultado._serialized}`);
+                console.log(`=================================\n`);
+                return numeroBase + '@c.us';
+            }
+        } catch (err) {
+            console.log(`   ❌ Número não encontrado`);
+            console.log(`   💡 Motivo: ${err.message || 'Número não existe no WhatsApp'}`);
+        }
+    }
+    
+    // Se não encontrou em nenhum formato
+    console.log(`\n❌ NÚMERO NÃO ENCONTRADO EM NENHUM FORMATO`);
+    console.log(`💡 Possíveis causas:`);
+    console.log(`   • Número não tem WhatsApp`);
+    console.log(`   • Número está incorreto`);
+    console.log(`   • Problema de conexão`);
+    console.log(`=================================\n`);
+    return null;
+}
+
+// ============================================
+// FUNÇÃO ATUALIZADA: Formatar número
+// ============================================
+async function formatarNumero(numero) {
+    console.log(`🔍 Iniciando verificação do número: ${numero}`);
+    
+    const numeroValido = await verificarNumeroWhatsApp(numero);
+    
+    if (!numeroValido) {
+        throw new Error(`❌ Número não encontrado no WhatsApp: ${numero}`);
+    }
+    
+    console.log(`✅ Número validado e formatado: ${numeroValido}`);
+    return numeroValido;
 }
 
 // Função para encontrar grupo por nome
@@ -438,7 +519,7 @@ async function adicionarAoGrupo(numeroFormatado, nomeGrupo) {
     }
 }
 
-// Função para remover de outros grupos onde sou admin
+// Função para remover de outros grupos
 async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
     try {
         const chats = await client.getChats();
@@ -496,9 +577,9 @@ app.get('/status', (req, res) => {
     });
 });
 
-// [Resto do código permanece igual - endpoints /send, /grupos, /test, etc.]
-
-// Endpoint para processar envio com LOGS DETALHADOS
+// ============================================
+// ENDPOINT /SEND ATUALIZADO
+// ============================================
 app.post('/send', async (req, res) => {
     const startTime = Date.now();
     console.log('\n' + '📨'.repeat(30));
@@ -514,7 +595,7 @@ app.post('/send', async (req, res) => {
         console.log('❌ ERRO: WhatsApp não está pronto');
         console.log('💡 POSSÍVEIS CAUSAS:');
         console.log('   1. QR code não foi escaneado ainda');
-        console.log('   2. WhatsApp ainda está sincronizando (comum em contas com muitas conversas)');
+        console.log('   2. WhatsApp ainda está sincronizando');
         console.log('   3. Problema de conectividade');
         console.log('   4. Sessão expirada');
         
@@ -538,10 +619,13 @@ app.post('/send', async (req, res) => {
         });
     }
 
-    const numeroFormatado = formatarNumero(Numero);
-    console.log(`🔄 Número formatado: ${Numero} → ${numeroFormatado}`);
-
     try {
+        // ===== AQUI ESTÁ A MUDANÇA PRINCIPAL =====
+        console.log(`\n🔄 Validando e formatando número...`);
+        const numeroFormatado = await formatarNumero(Numero);
+        console.log(`✅ Número formatado: ${numeroFormatado}`);
+        // =========================================
+
         if (Status === "Pagamento Aprovado") {
             console.log('\n✅ STATUS: PAGAMENTO APROVADO');
             console.log('📝 Iniciando processo de onboarding...');
@@ -679,6 +763,11 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
             console.error('📱 DIAGNÓSTICO: Erro de protocolo/sessão detectado');
         }
         
+        if (err.message.includes('não encontrado no WhatsApp')) {
+            console.error('📞 DIAGNÓSTICO: Número não existe no WhatsApp');
+            console.error('💡 AÇÃO RECOMENDADA: Verifique se o número está correto');
+        }
+        
         console.error('💥'.repeat(30) + '\n');
         
         res.status(500).json({ 
@@ -736,12 +825,54 @@ app.get('/test', (req, res) => {
     });
 });
 
-// Inicializar clientes
+// ============================================
+// NOVO ENDPOINT: Testar validação de número
+// ============================================
+app.post('/validar-numero', async (req, res) => {
+    console.log('\n🔍 Endpoint /validar-numero chamado');
+    
+    if (!whatsappReady) {
+        return res.status(503).json({ 
+            error: 'WhatsApp não está pronto ainda' 
+        });
+    }
+    
+    const { numero } = req.body;
+    
+    if (!numero) {
+        return res.status(400).json({ 
+            error: 'Campo "numero" é obrigatório' 
+        });
+    }
+    
+    try {
+        console.log(`🔍 Testando número: ${numero}`);
+        const numeroFormatado = await formatarNumero(numero);
+        
+        res.json({
+            success: true,
+            numeroOriginal: numero,
+            numeroValidado: numeroFormatado,
+            message: 'Número encontrado no WhatsApp!'
+        });
+        
+    } catch (error) {
+        console.error(`❌ Erro ao validar número:`, error);
+        res.status(404).json({
+            success: false,
+            numeroOriginal: numero,
+            error: error.message
+        });
+    }
+});
+
+// Inicializar cliente
 console.log('🚀 Inicializando WhatsApp...');
 console.log('📋 Depois que o bot inicializar, acesse:');
 console.log(`   🖼️  /qr-page - Página completa com QR code`);
 console.log(`   📱  /qr - Apenas a imagem do QR code`);
 console.log(`   📊  /status - Status do bot`);
+console.log(`   🔍  /validar-numero - Testar validação de número`);
 client.initialize();
 
 // Porta dinâmica para Railway
@@ -754,6 +885,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`   📊 Status: https://seu-app.railway.app/status`);
     console.log(`   📨 Send: https://seu-app.railway.app/send`);
     console.log(`   👥 Grupos: https://seu-app.railway.app/grupos`);
+    console.log(`   🔍 Validar Número: https://seu-app.railway.app/validar-numero`);
     console.log('\n📋 Produtos configurados:');
     Object.entries(configuracaoProdutos).forEach(([produto, config]) => {
         console.log(`   • ${produto} → Grupo: ${config.grupo}`);
@@ -783,8 +915,7 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 
-
-// Adicione este endpoint s
+// Health check
 app.get('/health', (req, res) => {
     res.status(200).json({ 
         status: 'healthy',
