@@ -538,20 +538,37 @@ async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
         
         console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
         
-        // Usar pupPage diretamente para executar código no navegador
-        await client.pupPage.evaluate((chatId, labelId) => {
-            return window.Store.Label.addOrRemoveLabels([labelId], [window.Store.Chat.get(chatId)]);
-        }, numeroFormatado.replace('@c.us', ''), etiqueta.id);
+        // Método alternativo: usar a API correta do WhatsApp Web
+        await client.pupPage.evaluate(async (chatId, labelId) => {
+            const chat = await window.Store.Chat.get(chatId);
+            if (!chat) throw new Error('Chat não encontrado');
+            
+            const label = window.Store.Label.get(labelId);
+            if (!label) throw new Error('Label não encontrada');
+            
+            await window.Store.Label.addOrRemoveLabels([label], [chat]);
+        }, numeroFormatado, etiqueta.id);
         
         console.log(`✅ Etiqueta adicionada com sucesso!\n`);
         return true;
         
     } catch (error) {
         console.error(`❌ Erro ao adicionar etiqueta: ${error.message}\n`);
-        return false;
+        
+        // Fallback: tentar método alternativo
+        try {
+            console.log(`🔄 Tentando método alternativo...`);
+            await client.pupPage.evaluate((chatId, labelId) => {
+                window.Store.Label.addLabelToChat(labelId, chatId);
+            }, numeroFormatado, etiqueta.id);
+            console.log(`✅ Etiqueta adicionada (método alternativo)!\n`);
+            return true;
+        } catch (err2) {
+            console.error(`❌ Método alternativo também falhou: ${err2.message}\n`);
+            return false;
+        }
     }
 }
-
 app.get('/', (req, res) => {
     res.json({ 
         status: 'WhatsApp Bot está rodando!',
