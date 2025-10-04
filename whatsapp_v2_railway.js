@@ -51,11 +51,13 @@ const client = new Client({
 const configuracaoProdutos = {
     "Protocolo Desinflama": {
         link: "https://dramarianasuzuki.com.br/ficha-de-matricula",
-        grupo: "Protocolo Desinflama - Alunas"
+        grupo: "Protocolo Desinflama - Alunas",
+        sigla: "PD"
     },
     "Protocolo O Fim do Lipedema": {
         link: "https://forms.gle/6kcb4EgmZ5RKe8Mo8",
-        grupo: "O Fim do Lipedema - Alunas"
+        grupo: "O Fim do Lipedema - Alunas",
+        sigla: "OFL"
     }
 };
 
@@ -547,6 +549,66 @@ async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
     }
 }
 
+// ============================================
+// NOVA FUNÇÃO: Adicionar etiqueta ao contato
+// ============================================
+async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
+    try {
+        console.log(`\n🏷️  === ADICIONANDO ETIQUETA ===`);
+        console.log(`📱 Número: ${numeroFormatado}`);
+        console.log(`🏷️  Etiqueta desejada: "${nomeEtiqueta}"`);
+        
+        // Busca o chat
+        const chat = await client.getChatById(numeroFormatado);
+        console.log(`✅ Chat encontrado: ${chat.name || numeroFormatado}`);
+        
+        // Busca todas as etiquetas disponíveis
+        const labels = await client.getLabels();
+        console.log(`📋 Total de etiquetas disponíveis: ${labels.length}`);
+        
+        if (labels.length > 0) {
+            console.log(`📋 Etiquetas existentes:`);
+            labels.forEach(l => console.log(`   • ${l.name} (ID: ${l.id})`));
+        }
+        
+        // Procura a etiqueta pelo nome
+        let etiqueta = labels.find(l => l.name === nomeEtiqueta);
+        
+        if (!etiqueta) {
+            console.log(`⚠️  Etiqueta "${nomeEtiqueta}" não existe.`);
+            console.log(`💡 IMPORTANTE: Você precisa criar esta etiqueta manualmente no WhatsApp primeiro!`);
+            console.log(`📱 Como criar:`);
+            console.log(`   1. Abra o WhatsApp Business no celular`);
+            console.log(`   2. Vá em Configurações > Ferramentas comerciais > Etiquetas`);
+            console.log(`   3. Crie a etiqueta: "${nomeEtiqueta}"`);
+            console.log(`   4. Depois o bot conseguirá adicionar automaticamente`);
+            return false;
+        }
+        
+        console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
+        
+        // Adiciona a etiqueta ao chat
+        await chat.addLabel(etiqueta.id);
+        console.log(`✅ Etiqueta "${nomeEtiqueta}" adicionada com sucesso!`);
+        console.log(`=================================\n`);
+        return true;
+        
+    } catch (error) {
+        console.error(`\n❌ ERRO ao adicionar etiqueta "${nomeEtiqueta}":`);
+        console.error(`   Mensagem: ${error.message}`);
+        
+        if (error.message.includes('chat not found')) {
+            console.error(`   💡 O chat não foi encontrado. Certifique-se de enviar uma mensagem primeiro.`);
+        }
+        if (error.message.includes('label')) {
+            console.error(`   💡 Problema com etiquetas. Verifique se você está usando WhatsApp Business.`);
+        }
+        
+        console.error(`=================================\n`);
+        return false;
+    }
+}
+
 // Endpoint de status
 app.get('/', (req, res) => {
     res.json({ 
@@ -687,6 +749,14 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
                 console.log(`🔄 Remoção de outros grupos finalizada (${removeEndTime - removeStartTime}ms)`);
             }
 
+            // Adicionar etiqueta
+            const nomeEtiqueta = `${config.sigla} - Pagamento Aprovado`;
+            console.log(`🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
+            const etiquetaStartTime = Date.now();
+            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
+            const etiquetaEndTime = Date.now();
+            console.log(`🏷️  Processo de etiqueta finalizado (${etiquetaEndTime - etiquetaStartTime}ms)`);
+
             const totalTime = Date.now() - startTime;
             console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
 
@@ -705,6 +775,14 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
             console.log('\n❌ STATUS: PAGAMENTO RECUSADO');
             console.log('📝 Enviando mensagem de reprovação...');
             
+            const config = configuracaoProdutos[Produto];
+            if (!config) {
+                console.log('❌ ERRO: Produto não reconhecido:', Produto);
+                return res.status(400).json({ 
+                    error: 'Produto não reconhecido' 
+                });
+            }
+            
             const mensagemReprovacao = `Boa noite ${Nome}! Tudo bem?\nMe chamo Isa, gostaria de te ajudar finalizar seu cadastro no ${Produto}.`;
             
             console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
@@ -715,6 +793,14 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
             const messageEndTime = Date.now();
             
             console.log(`✅ Mensagem enviada com sucesso! (${messageEndTime - messageStartTime}ms)`);
+            
+            // Adicionar etiqueta
+            const nomeEtiqueta = `${config.sigla} - Pagamento Recusado`;
+            console.log(`🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
+            const etiquetaStartTime = Date.now();
+            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
+            const etiquetaEndTime = Date.now();
+            console.log(`🏷️  Processo de etiqueta finalizado (${etiquetaEndTime - etiquetaStartTime}ms)`);
             
             const totalTime = Date.now() - startTime;
             console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
