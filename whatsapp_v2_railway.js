@@ -413,13 +413,14 @@ async function verificarNumeroWhatsApp(numero) {
                 
                 console.log(`   📊 Status inicial: ACK ${mensagem.ack}`);
                 
-                // Aguardar até 5 segundos para o WhatsApp processar e atualizar o ACK
+                // Aguardar até 8 segundos para o WhatsApp processar e atualizar o ACK
+                // Precisamos esperar ACK 2 (2 checks = entregue de verdade)
                 let ackFinal = mensagem.ack;
-                const tempoMaximo = 5000; // 5 segundos
+                const tempoMaximo = 8000; // 8 segundos
                 const intervalo = 500; // Verifica a cada 500ms
                 let tempoDecorrido = 0;
                 
-                while (tempoDecorrido < tempoMaximo && ackFinal < 1) {
+                while (tempoDecorrido < tempoMaximo && ackFinal < 2) {
                     await new Promise(resolve => setTimeout(resolve, intervalo));
                     tempoDecorrido += intervalo;
                     
@@ -429,9 +430,9 @@ async function verificarNumeroWhatsApp(numero) {
                         const mensagens = await chat.fetchMessages({ limit: 1 });
                         if (mensagens.length > 0 && mensagens[0].id.id === mensagem.id.id) {
                             ackFinal = mensagens[0].ack;
-                            console.log(`   ⏱️ ${tempoDecorrido}ms: ACK atualizado para ${ackFinal}`);
+                            console.log(`   ⏱️ ${tempoDecorrido}ms: ACK ${ackFinal} ${ackFinal === 0 ? '(pendente)' : ackFinal === 1 ? '(✓ enviado)' : ackFinal === 2 ? '(✓✓ entregue!)' : ''}`);
                             
-                            if (ackFinal >= 1) break; // Já foi entregue
+                            if (ackFinal >= 2) break; // Entregue de verdade (2 checks)
                         }
                     } catch (fetchErr) {
                         // Ignorar erros de busca
@@ -442,13 +443,13 @@ async function verificarNumeroWhatsApp(numero) {
                 console.log(`      - ID: ${mensagem.id.id}`);
                 console.log(`      - ACK final: ${ackFinal}`);
                 
-                // ACK 1 = Enviado para o servidor
-                // ACK 2 = Entregue no dispositivo do destinatário
-                // ACK 3 = Lido
-                // ACK 0 ou -1 = Falha/Não entregue
+                // ACK 0 = Pendente/Erro
+                // ACK 1 = Enviado para o servidor (1 check) - APARECE PARA AMBOS
+                // ACK 2 = Entregue no dispositivo (2 checks) - SÓ O CORRETO
+                // ACK 3 = Lido (checks azuis)
                 
-                if (ackFinal >= 1) {
-                    console.log(`   ✅ Mensagem ENTREGUE! (ACK: ${ackFinal})`);
+                if (ackFinal >= 2) {
+                    console.log(`   ✅ Mensagem ENTREGUE NO DISPOSITIVO! (ACK: ${ackFinal})`);
                     
                     // Tentar deletar a mensagem de teste
                     try {
@@ -461,7 +462,7 @@ async function verificarNumeroWhatsApp(numero) {
                     return true;
                 }
                 
-                console.log(`   ❌ Mensagem NÃO foi entregue (ACK: ${ackFinal})`);
+                console.log(`   ❌ Mensagem NÃO chegou no dispositivo (ACK: ${ackFinal})`);
                 
                 // Tentar deletar mesmo assim
                 try {
