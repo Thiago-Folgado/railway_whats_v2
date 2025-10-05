@@ -399,47 +399,73 @@ async function verificarNumeroWhatsApp(numero) {
         const formato8Digitos = '55' + ddd + numeroSemNove + '@c.us'; // Ex: 553197629068@c.us
         const formato9Digitos = '55' + ddd + numeroComNove + '@c.us'; // Ex: 5531997629068@c.us
         
-        console.log(`\n🔄 TESTE REAL: Enviando mensagem de verificação...`);
+        console.log(`\n🔄 TESTE REAL: Verificando qual formato tem destinatário válido...`);
         console.log(`   📱 Formato SEM 9: ${formato8Digitos}`);
         console.log(`   📱 Formato COM 9: ${formato9Digitos}`);
         
-        // TESTAR formato SEM 9 primeiro (mais comum ser o correto)
-        try {
-            console.log(`\n   🧪 Testando SEM 9 enviando mensagem...`);
-            const chat8 = await client.getChatById(formato8Digitos);
-            
-            // Verificar se o chat existe de verdade (tem informações)
-            if (chat8 && chat8.id && chat8.id._serialized) {
-                console.log(`   ✅ Chat encontrado SEM 9!`);
-                console.log(`   📱 Chat ID: ${chat8.id._serialized}`);
-                console.log(`   👤 Nome: ${chat8.name || 'Sem nome'}`);
-                console.log(`\n✅ USANDO: ${formato8Digitos}`);
-                console.log(`=================================\n`);
-                return formato8Digitos;
+        // Função auxiliar para testar se um número tem destinatário real
+        async function testarNumeroReal(numeroFormatado) {
+            try {
+                console.log(`\n   🧪 Testando: ${numeroFormatado}`);
+                
+                // Enviar mensagem de teste invisível (apenas texto vazio)
+                const mensagem = await client.sendMessage(numeroFormatado, '⠀'); // Espaço invisível Unicode
+                
+                // Aguardar um momento para o WhatsApp processar
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Verificar se a mensagem foi realmente enviada (tem ack)
+                console.log(`   📊 Status da mensagem:`);
+                console.log(`      - ID: ${mensagem.id.id}`);
+                console.log(`      - ACK: ${mensagem.ack}`);
+                console.log(`      - Timestamp: ${mensagem.timestamp}`);
+                
+                // ACK 1 = Enviado para o servidor
+                // ACK 2 = Entregue no dispositivo do destinatário
+                // ACK -1 ou 0 = Falha/Erro
+                
+                if (mensagem.ack >= 1) {
+                    console.log(`   ✅ Mensagem enviada com sucesso! (ACK: ${mensagem.ack})`);
+                    
+                    // Tentar deletar a mensagem de teste
+                    try {
+                        await mensagem.delete(true); // true = deletar para todos
+                        console.log(`   🗑️ Mensagem de teste deletada`);
+                    } catch (delErr) {
+                        console.log(`   ⚠️ Não foi possível deletar a mensagem de teste`);
+                    }
+                    
+                    return true;
+                }
+                
+                console.log(`   ❌ Mensagem não foi entregue (ACK: ${mensagem.ack})`);
+                return false;
+                
+            } catch (err) {
+                console.log(`   ❌ Erro ao testar: ${err.message}`);
+                return false;
             }
-        } catch (err) {
-            console.log(`   ❌ Formato SEM 9 não funcionou: ${err.message}`);
+        }
+        
+        // TESTAR formato SEM 9 primeiro (mais comum ser o correto)
+        const funciona8 = await testarNumeroReal(formato8Digitos);
+        if (funciona8) {
+            console.log(`\n✅ CONFIRMADO: Formato SEM 9 tem destinatário real!`);
+            console.log(`✅ USANDO: ${formato8Digitos}`);
+            console.log(`=================================\n`);
+            return formato8Digitos;
         }
         
         // Se não funcionou sem 9, testar COM 9
-        try {
-            console.log(`\n   🧪 Testando COM 9 enviando mensagem...`);
-            const chat9 = await client.getChatById(formato9Digitos);
-            
-            // Verificar se o chat existe de verdade
-            if (chat9 && chat9.id && chat9.id._serialized) {
-                console.log(`   ✅ Chat encontrado COM 9!`);
-                console.log(`   📱 Chat ID: ${chat9.id._serialized}`);
-                console.log(`   👤 Nome: ${chat9.name || 'Sem nome'}`);
-                console.log(`\n✅ USANDO: ${formato9Digitos}`);
-                console.log(`=================================\n`);
-                return formato9Digitos;
-            }
-        } catch (err) {
-            console.log(`   ❌ Formato COM 9 não funcionou: ${err.message}`);
+        const funciona9 = await testarNumeroReal(formato9Digitos);
+        if (funciona9) {
+            console.log(`\n✅ CONFIRMADO: Formato COM 9 tem destinatário real!`);
+            console.log(`✅ USANDO: ${formato9Digitos}`);
+            console.log(`=================================\n`);
+            return formato9Digitos;
         }
         
-        console.log(`\n❌ Número NÃO encontrado em NENHUM formato`);
+        console.log(`\n❌ Número NÃO tem destinatário válido em NENHUM formato`);
         console.log(`   Testado: ${formato8Digitos} e ${formato9Digitos}`);
         console.log(`=================================\n`);
         return null;
@@ -452,10 +478,16 @@ async function verificarNumeroWhatsApp(numero) {
         console.log(`   Testando: ${numeroFormatado}`);
         
         try {
-            const chat = await client.getChatById(numeroFormatado);
-            if (chat && chat.id && chat.id._serialized) {
+            const mensagem = await client.sendMessage(numeroFormatado, '⠀');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (mensagem.ack >= 1) {
                 console.log(`   ✅ ENCONTRADO!`);
-                console.log(`   📱 Chat ID: ${chat.id._serialized}`);
+                try {
+                    await mensagem.delete(true);
+                } catch (delErr) {
+                    // Ignorar erro de deletar
+                }
                 console.log(`\n✅ USANDO: ${numeroFormatado}`);
                 console.log(`=================================\n`);
                 return numeroFormatado;
