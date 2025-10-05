@@ -650,7 +650,7 @@ app.post('/send', async (req, res) => {
         return res.status(503).json({ error: 'WhatsApp não está pronto ainda' });
     }
     
-    const { Nome, Numero, Produto, Status, Email } = req.body;
+    const { Nome, Numero, Produto, Status, Email, Codigo } = req.body;
     
     console.log('📋 DADOS RECEBIDOS:');
     console.log(`   👤 Nome: ${Nome || 'NÃO INFORMADO'}`);
@@ -658,6 +658,7 @@ app.post('/send', async (req, res) => {
     console.log(`   🎯 Produto: ${Produto || 'NÃO INFORMADO'}`);
     console.log(`   📊 Status: ${Status || 'NÃO INFORMADO'}`);
     console.log(`   📧 Email: ${Email || 'NÃO INFORMADO'}`);
+    console.log(`   🔑 Codigo: ${Codigo || 'NÃO INFORMADO'}`);
     
     if (!Nome || !Numero || !Produto || !Status) {
         console.log('❌ ERRO: Dados incompletos');
