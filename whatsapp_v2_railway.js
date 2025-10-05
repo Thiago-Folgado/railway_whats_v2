@@ -393,37 +393,51 @@ async function verificarNumeroWhatsApp(numero) {
         console.log(`📍 DDD: ${ddd}`);
         console.log(`📞 Número sem DDD: ${numeroSemDDD} (${numeroSemDDD.length} dígitos)`);
         
-        const formato8Digitos = '55' + ddd + numeroSemDDD.substring(1);
-        console.log(`\n🔄 Tentativa 1: Formato 8 dígitos (12 total)`);
-        console.log(`   Número: ${formato8Digitos}`);
+        // Preparar ambos os formatos
+        const formato9Digitos = numeroBase; // Formato original com 9
+        const formato8Digitos = '55' + ddd + numeroSemDDD.substring(1); // Remove o primeiro dígito
         
+        // TESTAR AMBOS
+        let resultado9 = null;
+        let resultado8 = null;
+        
+        console.log(`\n🔄 Testando AMBOS os formatos...`);
+        
+        // Teste 1: 9 dígitos (formato original)
+        console.log(`   📞 Formato 9 dígitos: ${formato9Digitos}`);
         try {
-            const resultado8 = await client.getNumberId(formato8Digitos);
-            if (resultado8) {
-                console.log(`   ✅ ENCONTRADO! Número registrado com 8 dígitos`);
-                console.log(`   📱 ID WhatsApp: ${resultado8._serialized}`);
-                console.log(`=================================\n`);
-                return formato8Digitos + '@c.us';
+            resultado9 = await client.getNumberId(formato9Digitos);
+            if (resultado9) {
+                console.log(`   ✅ Existe com 9 dígitos`);
             }
         } catch (err) {
-            console.log(`   ❌ Não encontrado com 8 dígitos`);
-            console.log(`   💡 Motivo: ${err.message || 'Número não existe no WhatsApp'}`);
+            console.log(`   ❌ NÃO existe com 9 dígitos`);
         }
         
-        console.log(`\n🔄 Tentativa 2: Formato 9 dígitos (13 total)`);
-        console.log(`   Número: ${numeroBase}`);
-        
+        // Teste 2: 8 dígitos (sem o primeiro 9)
+        console.log(`   📞 Formato 8 dígitos: ${formato8Digitos}`);
         try {
-            const resultado9 = await client.getNumberId(numeroBase);
-            if (resultado9) {
-                console.log(`   ✅ ENCONTRADO! Número registrado com 9 dígitos`);
-                console.log(`   📱 ID WhatsApp: ${resultado9._serialized}`);
-                console.log(`=================================\n`);
-                return numeroBase + '@c.us';
+            resultado8 = await client.getNumberId(formato8Digitos);
+            if (resultado8) {
+                console.log(`   ✅ Existe com 8 dígitos`);
             }
         } catch (err) {
-            console.log(`   ❌ Não encontrado com 9 dígitos`);
-            console.log(`   💡 Motivo: ${err.message || 'Número não existe no WhatsApp'}`);
+            console.log(`   ❌ NÃO existe com 8 dígitos`);
+        }
+        
+        // DECISÃO: Priorizar 9 dígitos se existir
+        if (resultado9) {
+            console.log(`\n✅ USANDO formato com 9 dígitos (${formato9Digitos})`);
+            console.log(`=================================\n`);
+            return formato9Digitos + '@c.us';
+        } else if (resultado8) {
+            console.log(`\n✅ USANDO formato com 8 dígitos (${formato8Digitos})`);
+            console.log(`=================================\n`);
+            return formato8Digitos + '@c.us';
+        } else {
+            console.log(`\n❌ Número não encontrado em NENHUM formato`);
+            console.log(`=================================\n`);
+            return null;
         }
     }
     
@@ -441,15 +455,10 @@ async function verificarNumeroWhatsApp(numero) {
             }
         } catch (err) {
             console.log(`   ❌ Número não encontrado`);
-            console.log(`   💡 Motivo: ${err.message || 'Número não existe no WhatsApp'}`);
         }
     }
     
-    console.log(`\n❌ NÚMERO NÃO ENCONTRADO EM NENHUM FORMATO`);
-    console.log(`💡 Possíveis causas:`);
-    console.log(`   • Número não tem WhatsApp`);
-    console.log(`   • Número está incorreto`);
-    console.log(`   • Problema de conexão`);
+    console.log(`\n❌ NÚMERO NÃO ENCONTRADO`);
     console.log(`=================================\n`);
     return null;
 }
