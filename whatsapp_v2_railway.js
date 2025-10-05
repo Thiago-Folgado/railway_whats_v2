@@ -684,33 +684,38 @@ app.post('/send', async (req, res) => {
             console.log(`🔗 Link: ${config.link}`);
             console.log(`👥 Grupo: ${config.grupo}`);
             console.log(`📋 Protocolo: ${config.protocolo}`);
+            console.log(`🔑 Código recebido: ${Codigo}`);
             
-            const mensagemOnboarding = `**Oi, ${Nome}! Seja muito bem-vinda ao ${Produto}! 💛**
+            const mensagemOnboarding = `*Oi, ${Nome}! Seja muito bem-vinda ao ${Produto}! 💛*
 
 Estamos muito felizes em ter você com a gente nessa jornada. 🥰
 Agora vou te explicar rapidinho como começar:
 
-**1️⃣ Acesse sua área exclusiva de aluna:** 👉 Clique aqui: 
+*1️⃣ Acesse sua área exclusiva de aluna:* 👉 Clique no link abaixo: 
 
-https://checkout.payt.com.br/obrigado/${config.protocolo}
+https://checkout.payt.com.br/obrigado/${Codigo}
 
-Nesta página, você verá a mensagem **"Seu acesso foi liberado!"** e logo em seguida o botão **"Acesse agora"**. É só clicar e pronto — você já entra na plataforma com todas as aulas e materiais! 💪
+Nesta página, você verá a mensagem *(Seu acesso foi liberado!)* e logo em seguida o botão *(Acesse agora)*. É só clicar no botão e pronto — você já entra na plataforma com todas as aulas e materiais! 💪
 
-**2️⃣ E-mail de confirmação:** Enviaremos também as informações da sua compra e comunicações importantes para seu email cadastrado.
+*2️⃣ E-mail de confirmação:* 
 
-**📩Email Cadastrado na compra >> ${Email || 'não informado'}**
+Enviaremos também as informações da sua compra e comunicações importantes para seu email cadastrado.
+*📩Email Cadastrado na compra 👉 ${Email || 'não informado'}*
 
-(Verifique também a pasta de *spam* ou *promoções*, caso não veja na caixa de entrada.)
+(Busque tambem por (naoresponder@payt.com.br), caso não veja na caixa de entrada.)
 
-**3️⃣ Grupo de alunas no WhatsApp:** Você será adicionada ao novo grupo de alunas (**${config.grupo}**) — é lá que acontecem os **avisos e monitorias periódicas**. 
+*3️⃣ Grupo de alunas no WhatsApp:* 
 
+Você será adicionada ao novo grupo de alunas (*${config.grupo}*) — é lá que acontecem os *avisos e monitorias periódicas*. 
 Assim que for adicionada, já poderá acompanhar tudo com a turma! 🌼
 
-**4️⃣ Ficha de matrícula:** É rapidinha e muito importante! Ela nos ajuda a entender sua rotina e acompanhar seu progresso de forma personalizada: 
+*4️⃣ Ficha de matrícula:* 
 
+É rapidinha e muito importante! Ela nos ajuda a entender sua rotina e acompanhar seu progresso de forma personalizada: 
 📝 ${config.link}
 
 ✨ Pronto! Agora é só começar suas aulas e dar o primeiro passo rumo à transformação que você merece.
+
 Seja muito bem-vinda novamente — estamos juntas nessa! 💛`;
 
             console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
@@ -747,6 +752,7 @@ Seja muito bem-vinda novamente — estamos juntas nessa! 💛`;
                 produto: Produto,
                 link: config.link,
                 grupo: config.grupo,
+                codigo: Codigo,
                 adicionadoAoGrupo
             });
 
@@ -760,7 +766,11 @@ Seja muito bem-vinda novamente — estamos juntas nessa! 💛`;
                 return res.status(400).json({ error: 'Produto não reconhecido' });
             }
             
-            const mensagemReprovacao = `*Oii ${Nome}, tudo bem?* Vi que você tentou finalizar a compra do seu *${Produto}*, mas por algum motivo seu pagamento não foi aprovado...🙂 Estou aqui para te ajudar a finalizar seu pedido, está podendo falar rapidinho? 
+            const mensagemReprovacao = `*Oii ${Nome}, tudo bem?* 
+
+Vi que você tentou finalizar a compra do seu *${Produto}*, mas por algum motivo seu pagamento não foi aprovado...🙂 
+
+Estou aqui para te ajudar a finalizar seu pedido, está podendo falar rapidinho? 
 *Posso te ajudar? 🙏🏽*`;
             
             console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
