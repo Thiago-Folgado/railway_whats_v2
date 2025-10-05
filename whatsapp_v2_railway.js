@@ -49,12 +49,12 @@ const configuracaoProdutos = {
     "Protocolo Desinflama": {
         link: "https://dramarianasuzuki.com.br/ficha-de-matricula",
         grupo: "Protocolo Desinflama - Alunas",
-        sigla: "PD"
+        protocolo: "PD"
     },
     "Protocolo O Fim do Lipedema": {
         link: "https://forms.gle/6kcb4EgmZ5RKe8Mo8",
         grupo: "O Fim do Lipedema - Alunas",
-        sigla: "OFL"
+        protocolo: "OFL"
     }
 };
 
@@ -605,72 +605,6 @@ async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
     }
 }
 
-async function adicionarEtiqueta(numeroFormatado, nomeEtiqueta) {
-    try {
-        console.log(`\n🏷️  Adicionando etiqueta: "${nomeEtiqueta}"`);
-        console.log(`📱 Chat ID: ${numeroFormatado}`);
-        
-        const labels = await client.getLabels();
-        const etiqueta = labels.find(l => l.name === nomeEtiqueta);
-        
-        if (!etiqueta) {
-            console.log(`⚠️  Etiqueta "${nomeEtiqueta}" não existe`);
-            return false;
-        }
-        
-        console.log(`✅ Etiqueta encontrada: "${etiqueta.name}" (ID: ${etiqueta.id})`);
-        
-        // Verificar se o chat existe e testar aplicação
-        const resultado = await client.pupPage.evaluate(async (chatId, labelId, labelName) => {
-            try {
-                // Buscar o chat
-                const chat = await window.Store.Chat.get(chatId);
-                if (!chat) {
-                    return { success: false, error: 'Chat não encontrado' };
-                }
-                
-                // Buscar a label
-                const label = window.Store.Label.get(labelId);
-                if (!label) {
-                    return { success: false, error: 'Label não encontrada no Store' };
-                }
-                
-                // Tentar adicionar
-                await window.Store.Label.addOrRemoveLabels([label], [chat]);
-                
-                // Verificar se foi aplicada
-                const chatAtualizado = await window.Store.Chat.get(chatId);
-                const temLabel = chatAtualizado.labels && chatAtualizado.labels.includes(labelId);
-                
-                return { 
-                    success: true, 
-                    labelAplicada: temLabel,
-                    labelsAtuais: chatAtualizado.labels || []
-                };
-            } catch (err) {
-                return { success: false, error: err.message };
-            }
-        }, numeroFormatado, etiqueta.id, nomeEtiqueta);
-        
-        console.log(`📊 Resultado:`, JSON.stringify(resultado, null, 2));
-        
-        if (resultado.success && resultado.labelAplicada) {
-            console.log(`✅ Etiqueta confirmada no chat!\n`);
-            return true;
-        } else if (resultado.success && !resultado.labelAplicada) {
-            console.log(`⚠️  Código executou mas etiqueta não foi aplicada\n`);
-            return false;
-        } else {
-            console.log(`❌ Falha: ${resultado.error}\n`);
-            return false;
-        }
-        
-    } catch (error) {
-        console.error(`❌ Erro ao adicionar etiqueta: ${error.message}\n`);
-        return false;
-    }
-}
-
 app.get('/', (req, res) => {
     res.json({ 
         status: 'WhatsApp Bot está rodando!',
@@ -716,13 +650,14 @@ app.post('/send', async (req, res) => {
         return res.status(503).json({ error: 'WhatsApp não está pronto ainda' });
     }
     
-    const { Nome, Numero, Produto, Status } = req.body;
+    const { Nome, Numero, Produto, Status, Email } = req.body;
     
     console.log('📋 DADOS RECEBIDOS:');
     console.log(`   👤 Nome: ${Nome || 'NÃO INFORMADO'}`);
     console.log(`   📱 Numero: ${Numero || 'NÃO INFORMADO'}`);
     console.log(`   🎯 Produto: ${Produto || 'NÃO INFORMADO'}`);
     console.log(`   📊 Status: ${Status || 'NÃO INFORMADO'}`);
+    console.log(`   📧 Email: ${Email || 'NÃO INFORMADO'}`);
     
     if (!Nome || !Numero || !Produto || !Status) {
         console.log('❌ ERRO: Dados incompletos');
@@ -747,27 +682,35 @@ app.post('/send', async (req, res) => {
             console.log(`✅ Produto encontrado: ${Produto}`);
             console.log(`🔗 Link: ${config.link}`);
             console.log(`👥 Grupo: ${config.grupo}`);
+            console.log(`📋 Protocolo: ${config.protocolo}`);
             
-            const mensagemOnboarding = `**Oi, Seja muito bem-vinda ao ${Produto}! 💛**
+            const mensagemOnboarding = `**Oi, ${Nome}! Seja muito bem-vinda ao ${Produto}! 💛**
 
 Estamos muito felizes em ter você com a gente nessa jornada. 🥰
-Agora, quero te explicar os **próximos passos** para que você já comece com tudo:
+Agora vou te explicar rapidinho como começar:
 
-1️⃣ **Primeiro e mais importante: acesse o e-mail de compra.**
+**1️⃣ Acesse sua área exclusiva de aluna:** 👉 Clique aqui: 
 
-👉 Lá você vai encontrar **os dados de acesso à plataforma, onde estão todas as aulas do Protocolo e os bônus.**
-⚠️ Confira se consegue acessar. Caso tenha qualquer dificuldade, é só me chamar aqui neste número de suporte.
+https://checkout.payt.com.br/obrigado/${config.protocolo}
 
-2️⃣ **Você será adicionada ao grupo de alunas no WhatsApp e removida do grupo anterior.** Esse é o espaço onde acontecem os avisos e monitorias semanais.
+Nesta página, você verá a mensagem **"Seu acesso foi liberado!"** e logo em seguida o botão **"Acesse agora"**. É só clicar e pronto — você já entra na plataforma com todas as aulas e materiais! 💪
 
-3️⃣ **Responda a sua ficha de matrícula.**
-Ela é essencial para que possamos conhecer melhor sua rotina, suas necessidades e te acompanhar de forma mais personalizada. 👇
+**2️⃣ E-mail de confirmação:** Enviaremos também as informações da sua compra e comunicações importantes para seu email cadastrado.
+
+**📩Email Cadastrado na compra >> ${Email || 'não informado'}**
+
+(Verifique também a pasta de *spam* ou *promoções*, caso não veja na caixa de entrada.)
+
+**3️⃣ Grupo de alunas no WhatsApp:** Você será adicionada ao novo grupo de alunas (**${config.grupo}**) — é lá que acontecem os **avisos e monitorias periódicas**. 
+
+Assim que for adicionada, já poderá acompanhar tudo com a turma! 🌼
+
+**4️⃣ Ficha de matrícula:** É rapidinha e muito importante! Ela nos ajuda a entender sua rotina e acompanhar seu progresso de forma personalizada: 
 
 📝 ${config.link}
 
-**✨ Pronto!** Agora é só começar a assistir às aulas e dar o primeiro passo rumo à transformação que você merece.
-
-Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
+✨ Pronto! Agora é só começar suas aulas e dar o primeiro passo rumo à transformação que você merece.
+Seja muito bem-vinda novamente — estamos juntas nessa! 💛`;
 
             console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
             console.log('⏳ Aguardando envio da mensagem...');
@@ -791,9 +734,6 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
                 const removeEndTime = Date.now();
                 console.log(`🔄 Remoção de outros grupos finalizada (${removeEndTime - removeStartTime}ms)`);
             }
-
-            const nomeEtiqueta = `${config.sigla} - Pagamento Aprovado`;
-            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
 
             const totalTime = Date.now() - startTime;
             console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
@@ -819,7 +759,8 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
                 return res.status(400).json({ error: 'Produto não reconhecido' });
             }
             
-            const mensagemReprovacao = `Boa noite ${Nome}! Tudo bem?\nMe chamo Isa, gostaria de te ajudar finalizar seu cadastro no ${Produto}.`;
+            const mensagemReprovacao = `*Oii ${Nome}, tudo bem?* Vi que você tentou finalizar a compra do seu *${Produto}*, mas por algum motivo seu pagamento não foi aprovado...🙂 Estou aqui para te ajudar a finalizar seu pedido, está podendo falar rapidinho? 
+*Posso te ajudar? 🙏🏽*`;
             
             console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
             console.log('⏳ Aguardando envio da mensagem...');
@@ -829,9 +770,6 @@ Seja muito bem-vinda novamente, estamos juntas nessa! 💛`;
             const messageEndTime = Date.now();
             
             console.log(`✅ Mensagem enviada com sucesso! (${messageEndTime - messageStartTime}ms)`);
-            
-            const nomeEtiqueta = `${config.sigla} - Pagamento Recusado`;
-            await adicionarEtiqueta(numeroFormatado, nomeEtiqueta);
             
             const totalTime = Date.now() - startTime;
             console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
@@ -937,34 +875,16 @@ app.post('/validar-numero', async (req, res) => {
     }
 });
 
-
 app.get('/debug-labels', async (req, res) => {
-    if (!whatsappReady) {
-        return res.status(503).json({ error: 'WhatsApp não pronto' });
-    }
-    
-    try {
-        // Testar labels
-        const labels = await client.getLabels();
-        
-        // Testar um chat qualquer
-        const chats = await client.getChats();
-        const primeiroChat = chats.find(c => !c.isGroup);
-        
-        const info = {
-            labelsDisponiveis: labels.map(l => ({ id: l.id, nome: l.name })),
-            totalLabels: labels.length,
-            chatTeste: primeiroChat ? {
-                id: primeiroChat.id._serialized,
-                temAddLabel: typeof primeiroChat.addLabel === 'function',
-                metodosDisponiveis: Object.keys(primeiroChat).filter(k => typeof primeiroChat[k] === 'function')
-            } : null
-        };
-        
-        res.json(info);
-    } catch (error) {
-        res.status(500).json({ error: error.message, stack: error.stack });
-    }
+    res.status(410).json({ message: 'Endpoint removido - funcionalidade de etiquetas desativada' });
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
 });
 
 console.log('🚀 Inicializando WhatsApp...');
@@ -988,13 +908,3 @@ process.on('SIGINT', () => {
     client.destroy();
     process.exit(0);
 });
-
-app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
-});
-
-
