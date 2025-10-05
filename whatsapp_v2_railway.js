@@ -386,79 +386,87 @@ async function verificarNumeroWhatsApp(numero) {
     console.log(`🇧🇷 Número com código do país: ${numeroBase}`);
     console.log(`📏 Tamanho: ${numeroBase.length} dígitos`);
     
+    // Para números com 13 dígitos (55 + DDD + 9 dígitos)
     if (numeroBase.length === 13) {
         const ddd = numeroBase.substring(2, 4);
-        const numeroSemDDD = numeroBase.substring(4);
+        const numeroComNove = numeroBase.substring(4); // 9 dígitos
+        const numeroSemNove = numeroComNove.substring(1); // Remove o primeiro dígito (o 9)
         
         console.log(`📍 DDD: ${ddd}`);
-        console.log(`📞 Número sem DDD: ${numeroSemDDD} (${numeroSemDDD.length} dígitos)`);
+        console.log(`📞 Número completo: ${numeroComNove} (${numeroComNove.length} dígitos)`);
         
-        // Preparar ambos os formatos
-        const formato9Digitos = numeroBase; // Formato original com 9
-        const formato8Digitos = '55' + ddd + numeroSemDDD.substring(1); // Remove o primeiro dígito
+        // Preparar ambos os formatos para testar
+        const formato8Digitos = '55' + ddd + numeroSemNove + '@c.us'; // Ex: 553197629068@c.us
+        const formato9Digitos = '55' + ddd + numeroComNove + '@c.us'; // Ex: 5531997629068@c.us
         
-        // TESTAR AMBOS
-        let resultado9 = null;
-        let resultado8 = null;
+        console.log(`\n🔄 TESTE REAL: Enviando mensagem de verificação...`);
+        console.log(`   📱 Formato SEM 9: ${formato8Digitos}`);
+        console.log(`   📱 Formato COM 9: ${formato9Digitos}`);
         
-        console.log(`\n🔄 Testando AMBOS os formatos...`);
-        
-        // Teste 1: 9 dígitos (formato original)
-        console.log(`   📞 Formato 9 dígitos: ${formato9Digitos}`);
+        // TESTAR formato SEM 9 primeiro (mais comum ser o correto)
         try {
-            resultado9 = await client.getNumberId(formato9Digitos);
-            if (resultado9) {
-                console.log(`   ✅ Existe com 9 dígitos`);
-            }
-        } catch (err) {
-            console.log(`   ❌ NÃO existe com 9 dígitos`);
-        }
-        
-        // Teste 2: 8 dígitos (sem o primeiro 9)
-        console.log(`   📞 Formato 8 dígitos: ${formato8Digitos}`);
-        try {
-            resultado8 = await client.getNumberId(formato8Digitos);
-            if (resultado8) {
-                console.log(`   ✅ Existe com 8 dígitos`);
-            }
-        } catch (err) {
-            console.log(`   ❌ NÃO existe com 8 dígitos`);
-        }
-        
-        // DECISÃO: Priorizar 9 dígitos se existir
-        if (resultado9) {
-            console.log(`\n✅ USANDO formato com 9 dígitos (${formato9Digitos})`);
-            console.log(`=================================\n`);
-            return formato9Digitos + '@c.us';
-        } else if (resultado8) {
-            console.log(`\n✅ USANDO formato com 8 dígitos (${formato8Digitos})`);
-            console.log(`=================================\n`);
-            return formato8Digitos + '@c.us';
-        } else {
-            console.log(`\n❌ Número não encontrado em NENHUM formato`);
-            console.log(`=================================\n`);
-            return null;
-        }
-    }
-    
-    if (numeroBase.length === 12) {
-        console.log(`\n🔄 Tentativa: Formato padrão (12 dígitos)`);
-        console.log(`   Número: ${numeroBase}`);
-        
-        try {
-            const resultado = await client.getNumberId(numeroBase);
-            if (resultado) {
-                console.log(`   ✅ ENCONTRADO!`);
-                console.log(`   📱 ID WhatsApp: ${resultado._serialized}`);
+            console.log(`\n   🧪 Testando SEM 9 enviando mensagem...`);
+            const chat8 = await client.getChatById(formato8Digitos);
+            
+            // Verificar se o chat existe de verdade (tem informações)
+            if (chat8 && chat8.id && chat8.id._serialized) {
+                console.log(`   ✅ Chat encontrado SEM 9!`);
+                console.log(`   📱 Chat ID: ${chat8.id._serialized}`);
+                console.log(`   👤 Nome: ${chat8.name || 'Sem nome'}`);
+                console.log(`\n✅ USANDO: ${formato8Digitos}`);
                 console.log(`=================================\n`);
-                return numeroBase + '@c.us';
+                return formato8Digitos;
             }
         } catch (err) {
-            console.log(`   ❌ Número não encontrado`);
+            console.log(`   ❌ Formato SEM 9 não funcionou: ${err.message}`);
+        }
+        
+        // Se não funcionou sem 9, testar COM 9
+        try {
+            console.log(`\n   🧪 Testando COM 9 enviando mensagem...`);
+            const chat9 = await client.getChatById(formato9Digitos);
+            
+            // Verificar se o chat existe de verdade
+            if (chat9 && chat9.id && chat9.id._serialized) {
+                console.log(`   ✅ Chat encontrado COM 9!`);
+                console.log(`   📱 Chat ID: ${chat9.id._serialized}`);
+                console.log(`   👤 Nome: ${chat9.name || 'Sem nome'}`);
+                console.log(`\n✅ USANDO: ${formato9Digitos}`);
+                console.log(`=================================\n`);
+                return formato9Digitos;
+            }
+        } catch (err) {
+            console.log(`   ❌ Formato COM 9 não funcionou: ${err.message}`);
+        }
+        
+        console.log(`\n❌ Número NÃO encontrado em NENHUM formato`);
+        console.log(`   Testado: ${formato8Digitos} e ${formato9Digitos}`);
+        console.log(`=================================\n`);
+        return null;
+    }
+    
+    // Para números com 12 dígitos (55 + DDD + 8 dígitos)
+    if (numeroBase.length === 12) {
+        console.log(`\n🔄 Número tem 12 dígitos (formato sem o 9)`);
+        const numeroFormatado = numeroBase + '@c.us';
+        console.log(`   Testando: ${numeroFormatado}`);
+        
+        try {
+            const chat = await client.getChatById(numeroFormatado);
+            if (chat && chat.id && chat.id._serialized) {
+                console.log(`   ✅ ENCONTRADO!`);
+                console.log(`   📱 Chat ID: ${chat.id._serialized}`);
+                console.log(`\n✅ USANDO: ${numeroFormatado}`);
+                console.log(`=================================\n`);
+                return numeroFormatado;
+            }
+        } catch (err) {
+            console.log(`   ❌ Não encontrado: ${err.message}`);
         }
     }
     
-    console.log(`\n❌ NÚMERO NÃO ENCONTRADO`);
+    console.log(`\n❌ FORMATO DE NÚMERO NÃO RECONHECIDO`);
+    console.log(`   Tamanho recebido: ${numeroBase.length} dígitos`);
     console.log(`=================================\n`);
     return null;
 }
