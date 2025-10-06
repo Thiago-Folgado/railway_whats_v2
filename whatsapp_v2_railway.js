@@ -416,7 +416,7 @@ async function verificarNumeroWhatsApp(numero) {
                 // Aguardar até 8 segundos para o WhatsApp processar e atualizar o ACK
                 // Precisamos esperar ACK 2 (2 checks = entregue de verdade)
                 let ackFinal = mensagem.ack;
-                const tempoMaximo = 8000; // 8 segundos
+                const tempoMaximo = 20000; // 20 segundos
                 const intervalo = 500; // Verifica a cada 500ms
                 let tempoDecorrido = 0;
                 
