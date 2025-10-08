@@ -382,7 +382,48 @@ async function verificarNumeroWhatsApp(numero) {
     const numeroLimpo = numero.replace(/\D/g, '');
     console.log(`🧹 Número limpo: ${numeroLimpo}`);
     
-    let numeroBase = numeroLimpo.startsWith('55') ? numeroLimpo : '55' + numeroLimpo;
+    let numeroBase;
+    
+    // Detectar se já tem código do país ou se é apenas DDD + número
+    // Números brasileiros válidos:
+    // - 13 dígitos: 55 (país) + 2 (DDD) + 9 (número com 9)
+    // - 12 dígitos: 55 (país) + 2 (DDD) + 8 (número sem 9)
+    // - 11 dígitos: 2 (DDD) + 9 (número com 9) - SEM código país
+    // - 10 dígitos: 2 (DDD) + 8 (número sem 9) - SEM código país
+    
+    if (numeroLimpo.length === 13 || numeroLimpo.length === 12) {
+        // Pode ser: 55 (país) + DDD + número OU DDD 55 + número
+        // Verificar se começa com 55 E o próximo dígito é um DDD válido (11-99)
+        if (numeroLimpo.startsWith('55')) {
+            const possivelDDD = numeroLimpo.substring(2, 4);
+            const dddNumerico = parseInt(possivelDDD);
+            
+            // DDDs válidos no Brasil vão de 11 a 99
+            if (dddNumerico >= 11 && dddNumerico <= 99) {
+                console.log(`✅ Detectado: Código país 55 + DDD ${possivelDDD}`);
+                numeroBase = numeroLimpo;
+            } else {
+                // 55 é o DDD, não o código do país
+                console.log(`⚠️ Detectado: DDD 55 (não é código de país)`);
+                numeroBase = '55' + numeroLimpo;
+            }
+        } else {
+            // Não começa com 55, adicionar código do país
+            numeroBase = '55' + numeroLimpo;
+        }
+    } else if (numeroLimpo.length === 11 || numeroLimpo.length === 10) {
+        // DDD + número, sem código de país
+        console.log(`✅ Detectado: Formato sem código de país (DDD + número)`);
+        numeroBase = '55' + numeroLimpo;
+    } else {
+        // Outros tamanhos - tentar adicionar 55 se não tiver
+        if (numeroLimpo.startsWith('55')) {
+            numeroBase = numeroLimpo;
+        } else {
+            numeroBase = '55' + numeroLimpo;
+        }
+    }
+    
     console.log(`🇧🇷 Número com código do país: ${numeroBase}`);
     console.log(`📏 Tamanho: ${numeroBase.length} dígitos`);
     
@@ -534,7 +575,6 @@ async function verificarNumeroWhatsApp(numero) {
     console.log(`=================================\n`);
     return null;
 }
-
 async function formatarNumero(numero) {
     console.log(`🔍 Iniciando verificação do número: ${numero}`);
     
