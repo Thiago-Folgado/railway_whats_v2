@@ -756,7 +756,9 @@ Assim que for adicionada, já poderá acompanhar tudo com a turma! 🌼
 
 ✨ Pronto! Agora é só começar suas aulas e dar o primeiro passo rumo à transformação que você merece.
 
-Seja muito bem-vinda novamente — estamos juntas nessa! 💛`;
+Seja muito bem-vinda novamente — estamos juntas nessa! 💛
+
+⚠️ Em caso de Links não clicaveis, basta adicionar o contato`;
 
             console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
             console.log('⏳ Aguardando envio da mensagem...');
