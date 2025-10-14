@@ -189,23 +189,76 @@ async function testarNumero(numeroFormatado) {
 }
 
 // ============================================
+// FUNÇÃO AUXILIAR: FORMATAÇÃO SIMPLES (SEM VALIDAÇÃO)
+// ============================================
+
+function formatarNumeroSimples(numero) {
+    console.log(`🔍 Formatando número (sem validação): ${numero}`);
+    
+    const numeroLimpo = numero.replace(/\D/g, '');
+    let numeroBase;
+    
+    // Número com 10 dígitos: adiciona o 9
+    if (numeroLimpo.length === 10) {
+        const ddd = numeroLimpo.substring(0, 2);
+        const numeroSem9 = numeroLimpo.substring(2);
+        const numeroCom9 = ddd + '9' + numeroSem9;
+        numeroBase = '55' + numeroCom9;
+        console.log(`   10 dígitos → ${numeroBase}`);
+    }
+    // Número com 11 dígitos: adiciona código país
+    else if (numeroLimpo.length === 11) {
+        numeroBase = '55' + numeroLimpo;
+        console.log(`   11 dígitos → ${numeroBase}`);
+    }
+    // Número com 12 dígitos
+    else if (numeroLimpo.length === 12) {
+        if (numeroLimpo.startsWith('55')) {
+            numeroBase = numeroLimpo;
+        } else {
+            numeroBase = '55' + numeroLimpo;
+        }
+        console.log(`   12 dígitos → ${numeroBase}`);
+    }
+    // Número com 13 dígitos
+    else if (numeroLimpo.length === 13) {
+        if (numeroLimpo.startsWith('55')) {
+            numeroBase = numeroLimpo;
+        } else {
+            numeroBase = '55' + numeroLimpo;
+        }
+        console.log(`   13 dígitos → ${numeroBase}`);
+    }
+    else {
+        numeroBase = numeroLimpo.startsWith('55') ? numeroLimpo : '55' + numeroLimpo;
+        console.log(`   Outro formato → ${numeroBase}`);
+    }
+    
+    const numeroFormatado = numeroBase + '@c.us';
+    console.log(`✅ Número formatado: ${numeroFormatado}`);
+    return numeroFormatado;
+}
+
+// ============================================
 // ENDPOINTS DA API (MINIMALISTA)
 // ============================================
 
 // Status e Health Check
 app.get('/', (req, res) => {
     res.json({ 
-        status: 'WhatsApp Bot Minimalista',
+        status: 'WhatsApp Bot Minimalista v2.0',
         whatsappReady,
         timestamp: new Date().toISOString(),
         endpoints: {
             status: 'GET /status',
+            health: 'GET /health',
             qr: 'GET /qr-page',
             sendMessage: 'POST /send-message',
             addToGroup: 'POST /add-to-group',
-            removeFromGroups: 'POST /remove-from-groups',
-            listGroups: 'GET /list-groups'
-        }
+            listGroups: 'GET /list-groups',
+            testFormat: 'POST /test-format'
+        },
+        note: 'Versão otimizada - validação apenas no send-message'
     });
 });
 
@@ -314,7 +367,7 @@ app.get('/qr-page', (req, res) => {
 });
 
 // ============================================
-// ENDPOINT 1: ENVIAR MENSAGEM
+// ENDPOINT 1: ENVIAR MENSAGEM (VALIDAÇÃO INTELIGENTE)
 // ============================================
 
 app.post('/send-message', async (req, res) => {
@@ -337,14 +390,35 @@ app.post('/send-message', async (req, res) => {
     }
     
     try {
-        const numeroFormatado = await formatarNumero(numero);
+        let numeroFormatado;
+        
+        // ============================================
+        // LÓGICA INTELIGENTE: Detecta se já foi validado
+        // ============================================
+        
+        // Se o número termina com @c.us = JÁ FOI VALIDADO ANTES
+        if (numero.includes('@c.us')) {
+            console.log('✅ NÚMERO JÁ VALIDADO ANTERIORMENTE!');
+            console.log(`   Usando direto: ${numero}`);
+            numeroFormatado = numero;
+        } 
+        // Se não tem @c.us = PRIMEIRA VEZ, precisa validar
+        else {
+            console.log('🔍 PRIMEIRA VALIDAÇÃO - Testando número no WhatsApp...');
+            numeroFormatado = await formatarNumero(numero);
+            console.log(`✅ Número validado pela primeira vez: ${numeroFormatado}`);
+        }
+        
+        // Envia a mensagem
         await client.sendMessage(numeroFormatado, mensagem);
         
         console.log(`✅ Mensagem enviada para ${numeroFormatado}`);
         
         res.json({ 
             success: true,
-            numeroFormatado,
+            numeroOriginal: numero,
+            numeroFormatado: numeroFormatado,
+            jaValidado: numero.includes('@c.us'),
             message: 'Mensagem enviada com sucesso'
         });
         
@@ -352,13 +426,14 @@ app.post('/send-message', async (req, res) => {
         console.error(`❌ Erro:`, err);
         res.status(500).json({ 
             success: false,
+            numeroOriginal: numero,
             error: err.message 
         });
     }
 });
 
 // ============================================
-// ENDPOINT 2: ADICIONAR A GRUPO
+// ENDPOINT 2: ADICIONAR A GRUPO (VALIDAÇÃO INTELIGENTE)
 // ============================================
 
 app.post('/add-to-group', async (req, res) => {
@@ -381,7 +456,22 @@ app.post('/add-to-group', async (req, res) => {
     }
     
     try {
-        const numeroFormatado = await formatarNumero(numero);
+        let numeroFormatado;
+        
+        // ============================================
+        // LÓGICA INTELIGENTE: Detecta se já foi validado
+        // ============================================
+        
+        // Se o número termina com @c.us = JÁ FOI VALIDADO
+        if (numero.includes('@c.us')) {
+            console.log('✅ NÚMERO JÁ VALIDADO - Usando direto');
+            numeroFormatado = numero;
+        } 
+        // Se não tem @c.us = Apenas formata (sem validar)
+        else {
+            console.log('📝 Formatação simples (sem validação)');
+            numeroFormatado = formatarNumeroSimples(numero);
+        }
         
         const chats = await client.getChats();
         const grupo = chats.find(chat => chat.isGroup && chat.name === nomeGrupo);
@@ -399,8 +489,10 @@ app.post('/add-to-group', async (req, res) => {
         
         res.json({ 
             success: true,
-            numeroFormatado,
+            numeroOriginal: numero,
+            numeroFormatado: numeroFormatado,
             grupo: nomeGrupo,
+            jaValidado: numero.includes('@c.us'),
             message: 'Contato adicionado ao grupo com sucesso'
         });
         
@@ -408,85 +500,7 @@ app.post('/add-to-group', async (req, res) => {
         console.error(`❌ Erro:`, err);
         res.status(500).json({ 
             success: false,
-            error: err.message 
-        });
-    }
-});
-
-// ============================================
-// ENDPOINT 3: REMOVER DE OUTROS GRUPOS
-// ============================================
-
-app.post('/remove-from-groups', async (req, res) => {
-    console.log('\n🔄 /remove-from-groups chamado');
-    
-    if (!whatsappReady) {
-        return res.status(503).json({ 
-            success: false,
-            error: 'WhatsApp não está pronto' 
-        });
-    }
-    
-    const { numero, grupoExcecao } = req.body;
-    
-    if (!numero) {
-        return res.status(400).json({ 
-            success: false,
-            error: 'Campo obrigatório: numero' 
-        });
-    }
-    
-    try {
-        const numeroFormatado = await formatarNumero(numero);
-        
-        const chats = await client.getChats();
-        const grupos = chats.filter(chat => chat.isGroup);
-        
-        const gruposRemovidos = [];
-        
-        for (const grupo of grupos) {
-            // Pular o grupo de exceção
-            if (grupoExcecao && grupo.name === grupoExcecao) {
-                console.log(`⏭️ Pulando grupo "${grupo.name}" (exceção)`);
-                continue;
-            }
-            
-            // Verificar se o bot é admin
-            const euSouAdmin = grupo.participants.some(
-                p => p.id._serialized === client.info.wid._serialized && 
-                     (p.isAdmin || p.isSuperAdmin)
-            );
-            
-            if (!euSouAdmin) {
-                console.log(`⚠️ Não sou admin em "${grupo.name}"`);
-                continue;
-            }
-            
-            // Verificar se o contato está no grupo
-            const estaNoGrupo = grupo.participants.some(
-                p => p.id._serialized === numeroFormatado
-            );
-            
-            if (estaNoGrupo) {
-                console.log(`🗑️ Removendo de "${grupo.name}"`);
-                await grupo.removeParticipants([numeroFormatado]);
-                gruposRemovidos.push(grupo.name);
-                console.log(`✅ Removido de "${grupo.name}"`);
-            }
-        }
-        
-        res.json({ 
-            success: true,
-            numeroFormatado,
-            gruposRemovidos,
-            totalRemovido: gruposRemovidos.length,
-            message: `Removido de ${gruposRemovidos.length} grupo(s)`
-        });
-        
-    } catch (err) {
-        console.error(`❌ Erro:`, err);
-        res.status(500).json({ 
-            success: false,
+            numeroOriginal: numero,
             error: err.message 
         });
     }
@@ -523,6 +537,124 @@ app.get('/list-groups', async (req, res) => {
             success: true,
             grupos,
             total: grupos.length
+        });
+        
+    } catch (err) {
+        console.error(`❌ Erro:`, err);
+        res.status(500).json({ 
+            success: false,
+            error: err.message 
+        });
+    }
+});
+
+// ============================================
+// ENDPOINT DE TESTE: VALIDAR FORMATAÇÃO
+// ============================================
+
+app.post('/test-format', async (req, res) => {
+    console.log('\n🧪 /test-format chamado');
+    
+    const { numero } = req.body;
+    
+    if (!numero) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Campo obrigatório: numero' 
+        });
+    }
+    
+    try {
+        const numeroLimpo = numero.replace(/\D/g, '');
+        console.log(`📱 Número original: ${numero}`);
+        console.log(`🧹 Número limpo: ${numeroLimpo}`);
+        console.log(`📏 Tamanho: ${numeroLimpo.length} dígitos`);
+        
+        let resultado = {
+            numeroOriginal: numero,
+            numeroLimpo: numeroLimpo,
+            tamanho: numeroLimpo.length,
+            etapas: []
+        };
+        
+        if (numeroLimpo.length === 10) {
+            const ddd = numeroLimpo.substring(0, 2);
+            const numeroSem9 = numeroLimpo.substring(2);
+            const numeroCom9 = ddd + '9' + numeroSem9;
+            const numeroFinal = '55' + numeroCom9;
+            
+            resultado.etapas.push({
+                passo: 1,
+                descricao: '10 dígitos detectado (DDD + 8 dígitos)',
+                valor: numeroLimpo
+            });
+            resultado.etapas.push({
+                passo: 2,
+                descricao: 'DDD extraído',
+                valor: ddd
+            });
+            resultado.etapas.push({
+                passo: 3,
+                descricao: 'Número sem 9',
+                valor: numeroSem9
+            });
+            resultado.etapas.push({
+                passo: 4,
+                descricao: '9 adicionado como terceiro caractere',
+                valor: numeroCom9
+            });
+            resultado.etapas.push({
+                passo: 5,
+                descricao: 'Código país 55 adicionado',
+                valor: numeroFinal
+            });
+            resultado.etapas.push({
+                passo: 6,
+                descricao: 'Formato WhatsApp final',
+                valor: numeroFinal + '@c.us'
+            });
+            
+            resultado.numeroFormatado = numeroFinal;
+            resultado.numeroWhatsApp = numeroFinal + '@c.us';
+            resultado.regra = 'NÚMERO COM 10 DÍGITOS - 9 ADICIONADO';
+        } else if (numeroLimpo.length === 11) {
+            const numeroFinal = '55' + numeroLimpo;
+            
+            resultado.etapas.push({
+                passo: 1,
+                descricao: '11 dígitos detectado (DDD + 9 dígitos)',
+                valor: numeroLimpo
+            });
+            resultado.etapas.push({
+                passo: 2,
+                descricao: 'Código país 55 adicionado',
+                valor: numeroFinal
+            });
+            resultado.etapas.push({
+                passo: 3,
+                descricao: 'Formato WhatsApp final',
+                valor: numeroFinal + '@c.us'
+            });
+            
+            resultado.numeroFormatado = numeroFinal;
+            resultado.numeroWhatsApp = numeroFinal + '@c.us';
+            resultado.regra = 'NÚMERO COM 11 DÍGITOS - FORMATO MODERNO';
+        } else {
+            resultado.numeroFormatado = 'N/A';
+            resultado.numeroWhatsApp = 'N/A';
+            resultado.regra = 'FORMATO NÃO RECONHECIDO';
+            resultado.etapas.push({
+                passo: 1,
+                descricao: 'Tamanho não reconhecido',
+                valor: `${numeroLimpo.length} dígitos`
+            });
+        }
+        
+        console.log(`✅ Resultado: ${resultado.numeroWhatsApp}`);
+        
+        res.json({ 
+            success: true,
+            ...resultado
         });
         
     } catch (err) {
