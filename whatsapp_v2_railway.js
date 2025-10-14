@@ -2,26 +2,11 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const app = express();
 
 app.use(express.json());
 
-app.use((req, res, next) => {
-    console.log(`\n=== REQUISIÇÃO RECEBIDA ===`);
-    console.log(`Método: ${req.method}`);
-    console.log(`URL: ${req.url}`);
-    console.log(`IP: ${req.ip}`);
-    console.log(`User-Agent: ${req.get('User-Agent')}`);
-    console.log(`Headers:`, req.headers);
-    console.log(`Body:`, req.body);
-    console.log('============================\n');
-    next();
-});
-
 let whatsappReady = false;
-let currentQRCode = null;
 let qrString = '';
 
 const client = new Client({
@@ -36,95 +21,209 @@ const client = new Client({
             '--no-first-run',
             '--no-zygote',
             '--single-process',
-            '--disable-gpu',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
+            '--disable-gpu'
         ],
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
     }
 });
 
-const configuracaoProdutos = {
-    "Protocolo Desinflama": {
-        link: "https://dramarianasuzuki.com.br/ficha-de-matricula",
-        grupo: "Protocolo Desinflama - Alunas",
-        protocolo: "PD"
-    },
-    "Protocolo O Fim do Lipedema": {
-        link: "https://forms.gle/6kcb4EgmZ5RKe8Mo8",
-        grupo: "O Fim do Lipedema - Alunas",
-        protocolo: "OFL"
-    }
-};
+// ============================================
+// EVENTOS WHATSAPP
+// ============================================
 
 client.on('qr', async (qr) => {
-    console.log('\n🔗 QR CODE GERADO!');
-    console.log('='.repeat(80));
-    
+    console.log('🔗 QR CODE GERADO!');
     qrString = qr;
-    
-    console.log('📱 QR Code no terminal:');
     qrcode.generate(qr, { small: true });
-    
-    try {
-        const qrImage = await QRCode.toDataURL(qr);
-        console.log('\n🖼️ QR CODE BASE64 (copie e cole em um visualizador online):');
-        console.log(qrImage);
-    } catch (err) {
-        console.error('Erro ao gerar QR base64:', err);
-    }
-    
-    try {
-        const qrAscii = await QRCode.toString(qr, { type: 'terminal', width: 60 });
-        console.log('\n📟 QR CODE ASCII:');
-        console.log(qrAscii);
-    } catch (err) {
-        console.error('Erro ao gerar QR ASCII:', err);
-    }
-    
-    try {
-        const qrPath = path.join(__dirname, 'qrcode.png');
-        await QRCode.toFile(qrPath, qr, {
-            width: 300,
-            margin: 2,
-            color: {
-                dark: '#000000',
-                light: '#FFFFFF'
-            }
-        });
-        currentQRCode = qrPath;
-        console.log(`\n💾 QR Code salvo como imagem em: ${qrPath}`);
-    } catch (err) {
-        console.error('Erro ao salvar QR como imagem:', err);
-    }
-    
-    console.log('\n📋 OPÇÕES PARA ESCANEAR:');
-    console.log('1. Acesse: https://seu-app.railway.app/qr para ver o QR code');
-    console.log('2. Acesse: https://seu-app.railway.app/qr-page para uma página completa');
-    console.log('3. Use um decodificador online para o base64 acima');
-    console.log('4. Use o QR ASCII acima se estiver legível');
-    console.log('='.repeat(80));
-    console.log('📱 WhatsApp > Menu > Dispositivos Conectados > Conectar Dispositivo\n');
 });
 
-app.get('/qr', (req, res) => {
-    if (currentQRCode && fs.existsSync(currentQRCode)) {
-        res.sendFile(path.resolve(currentQRCode));
-    } else if (qrString) {
-        QRCode.toBuffer(qrString, (err, buffer) => {
-            if (err) {
-                res.status(500).send('Erro ao gerar QR code');
-                return;
+client.on('ready', () => {
+    console.log('✅ WhatsApp conectado!');
+    whatsappReady = true;
+    qrString = '';
+});
+
+client.on('disconnected', (reason) => {
+    console.log('❌ WhatsApp desconectado:', reason);
+    whatsappReady = false;
+});
+
+// ============================================
+// FUNÇÃO AUXILIAR: FORMATAÇÃO DE NÚMERO
+// ============================================
+
+async function formatarNumero(numero) {
+    console.log(`🔍 Formatando número: ${numero}`);
+    
+    const numeroLimpo = numero.replace(/\D/g, '');
+    let numeroBase;
+    
+    // ============================================
+    // LÓGICA ESPECIAL: Número com 10 dígitos
+    // ============================================
+    // Se o número tem exatamente 10 dígitos (DDD + 8 dígitos)
+    // Adiciona o "9" como terceiro caractere
+    // Exemplo: 3197629068 -> 31997629068
+    if (numeroLimpo.length === 10) {
+        const ddd = numeroLimpo.substring(0, 2);
+        const numeroSem9 = numeroLimpo.substring(2);
+        const numeroCom9 = ddd + '9' + numeroSem9;
+        
+        console.log(`📱 Número com 10 dígitos detectado`);
+        console.log(`   DDD: ${ddd}`);
+        console.log(`   Número original: ${numeroSem9} (8 dígitos)`);
+        console.log(`   Número com 9 adicionado: ${numeroCom9} (11 dígitos)`);
+        
+        numeroBase = '55' + numeroCom9;
+        console.log(`   Número final com código país: ${numeroBase}`);
+    }
+    // ============================================
+    // LÓGICA NORMAL: Outros formatos
+    // ============================================
+    else if (numeroLimpo.length === 13 || numeroLimpo.length === 12) {
+        if (numeroLimpo.startsWith('55')) {
+            const possivelDDD = numeroLimpo.substring(2, 4);
+            const dddNumerico = parseInt(possivelDDD);
+            
+            if (dddNumerico >= 11 && dddNumerico <= 99) {
+                numeroBase = numeroLimpo;
+            } else {
+                numeroBase = '55' + numeroLimpo;
             }
-            res.type('png');
-            res.send(buffer);
-        });
+        } else {
+            numeroBase = '55' + numeroLimpo;
+        }
+    } else if (numeroLimpo.length === 11) {
+        numeroBase = '55' + numeroLimpo;
     } else {
-        res.status(404).send('QR code ainda não foi gerado. Reinicie o bot se necessário.');
+        numeroBase = numeroLimpo.startsWith('55') ? numeroLimpo : '55' + numeroLimpo;
     }
+    
+    console.log(`📱 Número base: ${numeroBase} (${numeroBase.length} dígitos)`);
+    
+    // Para números com 13 dígitos (55 + DDD + 9 dígitos)
+    if (numeroBase.length === 13) {
+        const ddd = numeroBase.substring(2, 4);
+        const numeroComNove = numeroBase.substring(4);
+        const numeroSemNove = numeroComNove.substring(1);
+        
+        const formato8Digitos = '55' + ddd + numeroSemNove + '@c.us';
+        const formato9Digitos = '55' + ddd + numeroComNove + '@c.us';
+        
+        console.log(`🔄 Testando formato sem 9: ${formato8Digitos}`);
+        const funciona8 = await testarNumero(formato8Digitos);
+        if (funciona8) {
+            console.log(`✅ Formato sem 9 confirmado!`);
+            return formato8Digitos;
+        }
+        
+        console.log(`🔄 Testando formato com 9: ${formato9Digitos}`);
+        const funciona9 = await testarNumero(formato9Digitos);
+        if (funciona9) {
+            console.log(`✅ Formato com 9 confirmado!`);
+            return formato9Digitos;
+        }
+        
+        throw new Error(`Número não encontrado no WhatsApp: ${numero}`);
+    }
+    
+    // Para números com 12 dígitos (55 + DDD + 8 dígitos)
+    if (numeroBase.length === 12) {
+        const numeroFormatado = numeroBase + '@c.us';
+        const funciona = await testarNumero(numeroFormatado);
+        if (funciona) {
+            console.log(`✅ Formato confirmado!`);
+            return numeroFormatado;
+        }
+        throw new Error(`Número não encontrado no WhatsApp: ${numero}`);
+    }
+    
+    throw new Error(`Formato de número não reconhecido: ${numero}`);
+}
+
+async function testarNumero(numeroFormatado) {
+    try {
+        const mensagem = await client.sendMessage(numeroFormatado, '⠀');
+        
+        let ackFinal = mensagem.ack;
+        const tempoMaximo = 20000;
+        const intervalo = 500;
+        let tempoDecorrido = 0;
+        
+        while (tempoDecorrido < tempoMaximo && ackFinal < 2) {
+            await new Promise(resolve => setTimeout(resolve, intervalo));
+            tempoDecorrido += intervalo;
+            
+            try {
+                const chat = await client.getChatById(numeroFormatado);
+                const mensagens = await chat.fetchMessages({ limit: 1 });
+                if (mensagens.length > 0 && mensagens[0].id.id === mensagem.id.id) {
+                    ackFinal = mensagens[0].ack;
+                    if (ackFinal >= 2) break;
+                }
+            } catch (fetchErr) {
+                // Ignorar erros de busca
+            }
+        }
+        
+        if (ackFinal >= 2) {
+            try {
+                await mensagem.delete(true);
+            } catch (delErr) {
+                // Ignorar erro ao deletar
+            }
+            return true;
+        }
+        
+        try {
+            await mensagem.delete(true);
+        } catch (delErr) {
+            // Ignorar erro ao deletar
+        }
+        
+        return false;
+        
+    } catch (err) {
+        return false;
+    }
+}
+
+// ============================================
+// ENDPOINTS DA API (MINIMALISTA)
+// ============================================
+
+// Status e Health Check
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'WhatsApp Bot Minimalista',
+        whatsappReady,
+        timestamp: new Date().toISOString(),
+        endpoints: {
+            status: 'GET /status',
+            qr: 'GET /qr-page',
+            sendMessage: 'POST /send-message',
+            addToGroup: 'POST /add-to-group',
+            removeFromGroups: 'POST /remove-from-groups',
+            listGroups: 'GET /list-groups'
+        }
+    });
 });
 
+app.get('/status', (req, res) => {
+    res.json({ 
+        whatsappReady,
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'healthy',
+        uptime: process.uptime()
+    });
+});
+
+// QR Code
 app.get('/qr-page', (req, res) => {
     if (!qrString) {
         return res.send(`
@@ -146,42 +245,25 @@ app.get('/qr-page', (req, res) => {
                         margin: 0 auto; 
                         background: white; 
                         padding: 30px; 
-                        border-radius: 10px; 
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        border-radius: 10px;
                     }
                     h1 { color: #25D366; }
-                    .status { color: #ff6b6b; font-size: 18px; margin: 20px 0; }
-                    .refresh { 
-                        background: #25D366; 
-                        color: white; 
-                        border: none; 
-                        padding: 10px 20px; 
-                        border-radius: 5px; 
-                        cursor: pointer; 
-                        font-size: 16px;
-                    }
-                    .refresh:hover { background: #128C7E; }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <h1>📱 WhatsApp Bot</h1>
-                    <div class="status">⏳ QR Code ainda não foi gerado...</div>
-                    <p>O bot está inicializando. Aguarde alguns segundos e atualize a página.</p>
-                    <button class="refresh" onclick="location.reload()">🔄 Atualizar Página</button>
+                    <p>⏳ QR Code ainda não foi gerado...</p>
+                    <button onclick="location.reload()">🔄 Atualizar</button>
                 </div>
-                <script>
-                    setTimeout(() => location.reload(), 5000);
-                </script>
+                <script>setTimeout(() => location.reload(), 5000);</script>
             </body>
             </html>
         `);
     }
 
     QRCode.toDataURL(qrString, { width: 300, margin: 2 }, (err, url) => {
-        if (err) {
-            return res.status(500).send('Erro ao gerar QR code');
-        }
+        if (err) return res.status(500).send('Erro ao gerar QR code');
         
         res.send(`
             <!DOCTYPE html>
@@ -202,8 +284,7 @@ app.get('/qr-page', (req, res) => {
                         margin: 0 auto; 
                         background: white; 
                         padding: 30px; 
-                        border-radius: 10px; 
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        border-radius: 10px;
                     }
                     h1 { color: #25D366; }
                     .qr-code { 
@@ -211,734 +292,251 @@ app.get('/qr-page', (req, res) => {
                         padding: 20px;
                         background: #f8f9fa;
                         border-radius: 10px;
-                        border: 2px dashed #25D366;
                     }
                     .qr-code img { 
                         max-width: 100%; 
-                        height: auto; 
                         border-radius: 8px;
                     }
-                    .instructions { 
-                        text-align: left; 
-                        background: #e3f2fd; 
-                        padding: 15px; 
-                        border-radius: 8px; 
-                        margin: 20px 0;
-                    }
-                    .instructions ol { margin: 0; padding-left: 20px; }
-                    .instructions li { margin: 8px 0; }
-                    .status { 
-                        color: #25D366; 
-                        font-weight: bold; 
-                        font-size: 18px; 
-                        margin: 20px 0; 
-                    }
-                    .refresh { 
-                        background: #25D366; 
-                        color: white; 
-                        border: none; 
-                        padding: 10px 20px; 
-                        border-radius: 5px; 
-                        cursor: pointer; 
-                        font-size: 16px; 
-                        margin: 10px;
-                    }
-                    .refresh:hover { background: #128C7E; }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <h1>📱 WhatsApp Bot</h1>
-                    <div class="status">✅ QR Code pronto para escaneamento!</div>
-                    
                     <div class="qr-code">
-                        <img src="${url}" alt="QR Code WhatsApp" />
+                        <img src="${url}" alt="QR Code" />
                     </div>
-                    
-                    <div class="instructions">
-                        <h3>📋 Como escanear:</h3>
-                        <ol>
-                            <li>Abra o WhatsApp no seu celular</li>
-                            <li>Toque no menu (⋮) e selecione "Dispositivos conectados"</li>
-                            <li>Toque em "Conectar um dispositivo"</li>
-                            <li>Aponte a câmera para o QR code acima</li>
-                        </ol>
-                    </div>
-                    
-                    <button class="refresh" onclick="location.reload()">🔄 Atualizar QR Code</button>
-                    <button class="refresh" onclick="window.open('/qr', '_blank')">🖼️ Ver apenas a imagem</button>
+                    <p>✅ Escaneie o QR code com seu WhatsApp</p>
                 </div>
-                
-                <script>
-                    setInterval(async () => {
-                        try {
-                            const response = await fetch('/status');
-                            const data = await response.json();
-                            if (data.whatsappReady) {
-                                document.querySelector('.status').innerHTML = '🟢 WhatsApp conectado com sucesso!';
-                                document.querySelector('.status').style.color = '#4caf50';
-                            }
-                        } catch (err) {
-                            console.log('Erro ao verificar status:', err);
-                        }
-                    }, 10000);
-                </script>
             </body>
             </html>
         `);
     });
 });
 
-client.on('ready', () => {
-    console.log('\n' + '🎉'.repeat(20));
-    console.log('✅ WHATSAPP CONECTADO E PRONTO!');
-    console.log(`📞 Conectado como: ${client.info?.pushname || 'Usuário'}`);
-    console.log(`📱 Número: ${client.info?.wid?.user || 'N/A'}`);
-    console.log(`🆔 ID: ${client.info?.wid?._serialized || 'N/A'}`);
-    console.log(`⏰ Conectado em: ${new Date().toISOString()}`);
-    console.log('🎉'.repeat(20) + '\n');
-    
-    whatsappReady = true;
-    currentQRCode = null;
-    qrString = '';
-    
-    const qrPath = path.join(__dirname, 'qrcode.png');
-    if (fs.existsSync(qrPath)) {
-        try {
-            fs.unlinkSync(qrPath);
-            console.log('🗑️ Arquivo QR code removido após conexão');
-        } catch (err) {
-            console.log('⚠️ Não foi possível remover o arquivo QR:', err);
-        }
-    }
-});
+// ============================================
+// ENDPOINT 1: ENVIAR MENSAGEM
+// ============================================
 
-client.on('disconnected', (reason) => {
-    console.log('\n' + '❌'.repeat(20));
-    console.log('❌ WhatsApp desconectado:', reason);
-    console.log(`⏰ Desconectado em: ${new Date().toISOString()}`);
-    console.log('❌'.repeat(20) + '\n');
-    whatsappReady = false;
-    currentQRCode = null;
-    qrString = '';
-});
-
-client.on('auth_failure', (msg) => {
-    console.error('\n' + '🚫'.repeat(20));
-    console.error('🚫 FALHA NA AUTENTICAÇÃO:', msg);
-    console.error(`⏰ Erro em: ${new Date().toISOString()}`);
-    console.error('🚫'.repeat(20) + '\n');
-});
-
-client.on('authenticated', () => {
-    console.log('\n' + '🔐'.repeat(15));
-    console.log('🔐 Autenticado com sucesso!');
-    console.log(`⏰ Autenticado em: ${new Date().toISOString()}`);
-    console.log('🔐'.repeat(15) + '\n');
-});
-
-client.on('loading_screen', (percent, message) => {
-    console.log(`⏳ [${new Date().toISOString()}] Carregando WhatsApp: ${percent}% - ${message}`);
-    
-    if (message.includes('Syncing messages') || message.includes('messages')) {
-        console.log('📱💬 DETECTADO: Sincronização de mensagens - pode demorar para contas com muitas conversas');
-    }
-    if (message.includes('Syncing chats') || message.includes('chats')) {
-        console.log('📱💬 DETECTADO: Sincronização de chats - pode demorar para contas com muitas conversas');
-    }
-    if (message.includes('Loading') && percent < 50) {
-        console.log('📱⚠️ AVISO: Carregamento inicial pode demorar vários minutos para contas com histórico extenso');
-    }
-    if (percent > 80) {
-        console.log('📱🚀 Quase pronto! Finalizando sincronização...');
-    }
-});
-
-client.on('change_state', state => {
-    console.log(`🔄 [${new Date().toISOString()}] Estado mudou para: ${state}`);
-    
-    if (state === 'OPENING') {
-        console.log('📱🔓 WhatsApp iniciando...');
-    }
-    if (state === 'PAIRING') {
-        console.log('📱🔗 Pareando dispositivo...');
-    }
-    if (state === 'UNPAIRED') {
-        console.log('📱❌ Dispositivo não pareado');
-    }
-    if (state === 'TIMEOUT') {
-        console.log('📱⏰ TIMEOUT detectado - possível problema com contas que têm muitas conversas');
-    }
-});
-
-client.on('change_battery', (batteryInfo) => {
-    console.log(`🔋 [${new Date().toISOString()}] Bateria do celular: ${batteryInfo.battery}% (${batteryInfo.plugged ? 'Carregando' : 'Descarregando'})`);
-});
-
-async function verificarNumeroWhatsApp(numero) {
-    console.log(`\n🔍 === VERIFICAÇÃO DE NÚMERO ===`);
-    console.log(`📱 Número recebido: ${numero}`);
-    
-    const numeroLimpo = numero.replace(/\D/g, '');
-    console.log(`🧹 Número limpo: ${numeroLimpo}`);
-    
-    let numeroBase;
-    
-    // Detectar se já tem código do país ou se é apenas DDD + número
-    // Números brasileiros válidos:
-    // - 13 dígitos: 55 (país) + 2 (DDD) + 9 (número com 9)
-    // - 12 dígitos: 55 (país) + 2 (DDD) + 8 (número sem 9)
-    // - 11 dígitos: 2 (DDD) + 9 (número com 9) - SEM código país
-    // - 10 dígitos: 2 (DDD) + 8 (número sem 9) - SEM código país
-    
-    if (numeroLimpo.length === 13 || numeroLimpo.length === 12) {
-        // Pode ser: 55 (país) + DDD + número OU DDD 55 + número
-        // Verificar se começa com 55 E o próximo dígito é um DDD válido (11-99)
-        if (numeroLimpo.startsWith('55')) {
-            const possivelDDD = numeroLimpo.substring(2, 4);
-            const dddNumerico = parseInt(possivelDDD);
-            
-            // DDDs válidos no Brasil vão de 11 a 99
-            if (dddNumerico >= 11 && dddNumerico <= 99) {
-                console.log(`✅ Detectado: Código país 55 + DDD ${possivelDDD}`);
-                numeroBase = numeroLimpo;
-            } else {
-                // 55 é o DDD, não o código do país
-                console.log(`⚠️ Detectado: DDD 55 (não é código de país)`);
-                numeroBase = '55' + numeroLimpo;
-            }
-        } else {
-            // Não começa com 55, adicionar código do país
-            numeroBase = '55' + numeroLimpo;
-        }
-    } else if (numeroLimpo.length === 11 || numeroLimpo.length === 10) {
-        // DDD + número, sem código de país
-        console.log(`✅ Detectado: Formato sem código de país (DDD + número)`);
-        numeroBase = '55' + numeroLimpo;
-    } else {
-        // Outros tamanhos - tentar adicionar 55 se não tiver
-        if (numeroLimpo.startsWith('55')) {
-            numeroBase = numeroLimpo;
-        } else {
-            numeroBase = '55' + numeroLimpo;
-        }
-    }
-    
-    console.log(`🇧🇷 Número com código do país: ${numeroBase}`);
-    console.log(`📏 Tamanho: ${numeroBase.length} dígitos`);
-    
-    // Para números com 13 dígitos (55 + DDD + 9 dígitos)
-    if (numeroBase.length === 13) {
-        const ddd = numeroBase.substring(2, 4);
-        const numeroComNove = numeroBase.substring(4); // 9 dígitos
-        const numeroSemNove = numeroComNove.substring(1); // Remove o primeiro dígito (o 9)
-        
-        console.log(`📍 DDD: ${ddd}`);
-        console.log(`📞 Número completo: ${numeroComNove} (${numeroComNove.length} dígitos)`);
-        
-        // Preparar ambos os formatos para testar
-        const formato8Digitos = '55' + ddd + numeroSemNove + '@c.us'; // Ex: 553197629068@c.us
-        const formato9Digitos = '55' + ddd + numeroComNove + '@c.us'; // Ex: 5531997629068@c.us
-        
-        console.log(`\n🔄 TESTE REAL: Verificando qual formato tem destinatário válido...`);
-        console.log(`   📱 Formato SEM 9: ${formato8Digitos}`);
-        console.log(`   📱 Formato COM 9: ${formato9Digitos}`);
-        
-        // Função auxiliar para testar se um número tem destinatário real
-        async function testarNumeroReal(numeroFormatado) {
-            try {
-                console.log(`\n   🧪 Testando: ${numeroFormatado}`);
-                
-                // Enviar mensagem de teste invisível (apenas texto vazio)
-                const mensagem = await client.sendMessage(numeroFormatado, '⠀'); // Espaço invisível Unicode
-                
-                console.log(`   📊 Status inicial: ACK ${mensagem.ack}`);
-                
-                // Aguardar até 8 segundos para o WhatsApp processar e atualizar o ACK
-                // Precisamos esperar ACK 2 (2 checks = entregue de verdade)
-                let ackFinal = mensagem.ack;
-                const tempoMaximo = 20000; // 20 segundos
-                const intervalo = 500; // Verifica a cada 500ms
-                let tempoDecorrido = 0;
-                
-                while (tempoDecorrido < tempoMaximo && ackFinal < 2) {
-                    await new Promise(resolve => setTimeout(resolve, intervalo));
-                    tempoDecorrido += intervalo;
-                    
-                    // Buscar a mensagem novamente para pegar o ACK atualizado
-                    try {
-                        const chat = await client.getChatById(numeroFormatado);
-                        const mensagens = await chat.fetchMessages({ limit: 1 });
-                        if (mensagens.length > 0 && mensagens[0].id.id === mensagem.id.id) {
-                            ackFinal = mensagens[0].ack;
-                            console.log(`   ⏱️ ${tempoDecorrido}ms: ACK ${ackFinal} ${ackFinal === 0 ? '(pendente)' : ackFinal === 1 ? '(✓ enviado)' : ackFinal === 2 ? '(✓✓ entregue!)' : ''}`);
-                            
-                            if (ackFinal >= 2) break; // Entregue de verdade (2 checks)
-                        }
-                    } catch (fetchErr) {
-                        // Ignorar erros de busca
-                    }
-                }
-                
-                console.log(`   📊 Status final após ${tempoDecorrido}ms:`);
-                console.log(`      - ID: ${mensagem.id.id}`);
-                console.log(`      - ACK final: ${ackFinal}`);
-                
-                // ACK 0 = Pendente/Erro
-                // ACK 1 = Enviado para o servidor (1 check) - APARECE PARA AMBOS
-                // ACK 2 = Entregue no dispositivo (2 checks) - SÓ O CORRETO
-                // ACK 3 = Lido (checks azuis)
-                
-                if (ackFinal >= 2) {
-                    console.log(`   ✅ Mensagem ENTREGUE NO DISPOSITIVO! (ACK: ${ackFinal})`);
-                    
-                    // Tentar deletar a mensagem de teste
-                    try {
-                        await mensagem.delete(true); // true = deletar para todos
-                        console.log(`   🗑️ Mensagem de teste deletada`);
-                    } catch (delErr) {
-                        console.log(`   ⚠️ Não foi possível deletar a mensagem de teste`);
-                    }
-                    
-                    return true;
-                }
-                
-                console.log(`   ❌ Mensagem NÃO chegou no dispositivo (ACK: ${ackFinal})`);
-                
-                // Tentar deletar mesmo assim
-                try {
-                    await mensagem.delete(true);
-                } catch (delErr) {
-                    // Ignorar erro
-                }
-                
-                return false;
-                
-            } catch (err) {
-                console.log(`   ❌ Erro ao testar: ${err.message}`);
-                return false;
-            }
-        }
-        
-        // TESTAR formato SEM 9 primeiro (mais comum ser o correto)
-        const funciona8 = await testarNumeroReal(formato8Digitos);
-        if (funciona8) {
-            console.log(`\n✅ CONFIRMADO: Formato SEM 9 tem destinatário real!`);
-            console.log(`✅ USANDO: ${formato8Digitos}`);
-            console.log(`=================================\n`);
-            return formato8Digitos;
-        }
-        
-        // Se não funcionou sem 9, testar COM 9
-        const funciona9 = await testarNumeroReal(formato9Digitos);
-        if (funciona9) {
-            console.log(`\n✅ CONFIRMADO: Formato COM 9 tem destinatário real!`);
-            console.log(`✅ USANDO: ${formato9Digitos}`);
-            console.log(`=================================\n`);
-            return formato9Digitos;
-        }
-        
-        console.log(`\n❌ Número NÃO tem destinatário válido em NENHUM formato`);
-        console.log(`   Testado: ${formato8Digitos} e ${formato9Digitos}`);
-        console.log(`=================================\n`);
-        return null;
-    }
-    
-    // Para números com 12 dígitos (55 + DDD + 8 dígitos)
-    if (numeroBase.length === 12) {
-        console.log(`\n🔄 Número tem 12 dígitos (formato sem o 9)`);
-        const numeroFormatado = numeroBase + '@c.us';
-        console.log(`   Testando: ${numeroFormatado}`);
-        
-        try {
-            const mensagem = await client.sendMessage(numeroFormatado, '⠀');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            if (mensagem.ack >= 1) {
-                console.log(`   ✅ ENCONTRADO!`);
-                try {
-                    await mensagem.delete(true);
-                } catch (delErr) {
-                    // Ignorar erro de deletar
-                }
-                console.log(`\n✅ USANDO: ${numeroFormatado}`);
-                console.log(`=================================\n`);
-                return numeroFormatado;
-            }
-        } catch (err) {
-            console.log(`   ❌ Não encontrado: ${err.message}`);
-        }
-    }
-    
-    console.log(`\n❌ FORMATO DE NÚMERO NÃO RECONHECIDO`);
-    console.log(`   Tamanho recebido: ${numeroBase.length} dígitos`);
-    console.log(`=================================\n`);
-    return null;
-}
-async function formatarNumero(numero) {
-    console.log(`🔍 Iniciando verificação do número: ${numero}`);
-    
-    const numeroValido = await verificarNumeroWhatsApp(numero);
-    
-    if (!numeroValido) {
-        throw new Error(`❌ Número não encontrado no WhatsApp: ${numero}`);
-    }
-    
-    console.log(`✅ Número validado e formatado: ${numeroValido}`);
-    return numeroValido;
-}
-
-async function encontrarGrupo(nomeGrupo) {
-    try {
-        const chats = await client.getChats();
-        return chats.find(chat => chat.isGroup && chat.name === nomeGrupo);
-    } catch (error) {
-        console.error('Erro ao buscar grupos:', error);
-        return null;
-    }
-}
-
-async function adicionarAoGrupo(numeroFormatado, nomeGrupo) {
-    try {
-        const grupo = await encontrarGrupo(nomeGrupo);
-        if (!grupo) {
-            console.log(`❌ Grupo "${nomeGrupo}" não encontrado`);
-            return false;
-        }
-
-        await grupo.addParticipants([numeroFormatado]);
-        console.log(`✅ Contato adicionado ao grupo: ${nomeGrupo}`);
-        return true;
-    } catch (error) {
-        console.error(`❌ Erro ao adicionar ao grupo "${nomeGrupo}":`, error);
-        if (error?.data) {
-            console.error('📄 Detalhes do erro:', JSON.stringify(error.data, null, 2));
-        }
-        return false;
-    }
-}
-
-async function removerDeOutrosGrupos(numeroFormatado, grupoDeDestino) {
-    try {
-        const chats = await client.getChats();
-        const grupos = chats.filter(chat => chat.isGroup);
-
-        for (const grupo of grupos) {
-            if (grupo.name === grupoDeDestino) continue;
-
-            const euSouAdmin = grupo.participants.some(
-                p => p.id._serialized === client.info.wid._serialized && (p.isAdmin || p.isSuperAdmin)
-            );
-            if (!euSouAdmin) continue;
-
-            const estaNoGrupo = grupo.participants.some(p => p.id._serialized === numeroFormatado);
-            if (estaNoGrupo) {
-                console.log(`🔄 Removendo ${numeroFormatado} do grupo "${grupo.name}"`);
-                await grupo.removeParticipants([numeroFormatado]);
-                console.log(`✅ Removido do grupo: ${grupo.name}`);
-            }
-        }
-        return true;
-    } catch (error) {
-        console.error(`❌ Erro ao remover ${numeroFormatado} de outros grupos:`, error);
-        return false;
-    }
-}
-
-app.get('/', (req, res) => {
-    res.json({ 
-        status: 'WhatsApp Bot está rodando!',
-        whatsappReady,
-        timestamp: new Date().toISOString(),
-        server: 'OK',
-        qrAvailable: !!qrString,
-        endpoints: {
-            status: '/status',
-            qrImage: '/qr',
-            qrPage: '/qr-page',
-            send: '/send',
-            grupos: '/grupos',
-            test: '/test'
-        }
-    });
-});
-
-app.get('/status', (req, res) => {
-    console.log('📊 Endpoint /status chamado');
-    res.json({ 
-        whatsappReady,
-        timestamp: new Date().toISOString(),
-        server: 'OK',
-        qrAvailable: !!qrString,
-        needsQR: !whatsappReady && !qrString
-    });
-});
-
-app.post('/send', async (req, res) => {
-    const startTime = Date.now();
-    console.log('\n' + '📨'.repeat(30));
-    console.log('📨 ENDPOINT /SEND CHAMADO');
-    console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
-    console.log('📨'.repeat(30));
-    
-    console.log(`🔍 Estado WhatsApp: ${whatsappReady ? '✅ PRONTO' : '❌ NÃO PRONTO'}`);
-    console.log(`🔍 QR disponível: ${qrString ? '✅ SIM' : '❌ NÃO'}`);
-    console.log(`🔍 Cliente existe: ${client ? '✅ SIM' : '❌ NÃO'}`);
+app.post('/send-message', async (req, res) => {
+    console.log('\n📨 /send-message chamado');
     
     if (!whatsappReady) {
-        console.log('❌ ERRO: WhatsApp não está pronto');
-        return res.status(503).json({ error: 'WhatsApp não está pronto ainda' });
+        return res.status(503).json({ 
+            success: false,
+            error: 'WhatsApp não está pronto' 
+        });
     }
     
-    const { Nome, Numero, Produto, Status, Email, Codigo } = req.body;
+    const { numero, mensagem } = req.body;
     
-    console.log('📋 DADOS RECEBIDOS:');
-    console.log(`   👤 Nome: ${Nome || 'NÃO INFORMADO'}`);
-    console.log(`   📱 Numero: ${Numero || 'NÃO INFORMADO'}`);
-    console.log(`   🎯 Produto: ${Produto || 'NÃO INFORMADO'}`);
-    console.log(`   📊 Status: ${Status || 'NÃO INFORMADO'}`);
-    console.log(`   📧 Email: ${Email || 'NÃO INFORMADO'}`);
-    console.log(`   🔑 Codigo: ${Codigo || 'NÃO INFORMADO'}`);
-    
-    if (!Nome || !Numero || !Produto || !Status) {
-        console.log('❌ ERRO: Dados incompletos');
-        return res.status(400).json({ error: 'Campos obrigatórios: Nome, Numero, Produto, Status' });
+    if (!numero || !mensagem) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Campos obrigatórios: numero, mensagem' 
+        });
     }
-
+    
     try {
-        console.log(`\n🔄 Validando e formatando número...`);
-        const numeroFormatado = await formatarNumero(Numero);
-        console.log(`✅ Número formatado: ${numeroFormatado}`);
-
-        if (Status === "Pagamento Aprovado") {
-            console.log('\n✅ STATUS: PAGAMENTO APROVADO');
-            console.log('📝 Iniciando processo de onboarding...');
-            
-            const config = configuracaoProdutos[Produto];
-            if (!config) {
-                console.log('❌ ERRO: Produto não reconhecido:', Produto);
-                return res.status(400).json({ error: 'Produto não reconhecido' });
-            }
-            
-            console.log(`✅ Produto encontrado: ${Produto}`);
-            console.log(`🔗 Link: ${config.link}`);
-            console.log(`👥 Grupo: ${config.grupo}`);
-            console.log(`📋 Protocolo: ${config.protocolo}`);
-            console.log(`🔑 Código recebido: ${Codigo}`);
-            
-            const mensagemOnboarding = `*Oi, ${Nome}! Seja muito bem-vinda ao ${Produto}! 💛*
-
-Estamos muito felizes em ter você com a gente nessa jornada. 🥰
-Agora vou te explicar rapidinho como começar:
-
-*1️⃣ Acesse sua área exclusiva de aluna:* 👉 Clique no link abaixo: 
-
-https://checkout.payt.com.br/obrigado/${Codigo}
-
-Nesta página, você verá a mensagem *(Seu acesso foi liberado!)* e logo em seguida o botão *(Acesse agora)*. É só clicar no botão e pronto — você já entra na plataforma com todas as aulas e materiais! 💪
-
-*2️⃣ E-mail de confirmação:* 
-
-Enviaremos também as informações da sua compra e comunicações importantes para seu email cadastrado.
-*📩Email Cadastrado na compra 👉 ${Email || 'não informado'}*
-
-(Busque tambem por (naoresponder@payt.com.br), caso não veja na caixa de entrada.)
-
-*3️⃣ Grupo de alunas no WhatsApp:* 
-
-Você será adicionada ao novo grupo de alunas (*${config.grupo}*) — é lá que acontecem os *avisos e monitorias periódicas*. 
-Assim que for adicionada, já poderá acompanhar tudo com a turma! 🌼
-
-*4️⃣ Ficha de matrícula:* 
-
-É rapidinha e muito importante! Ela nos ajuda a entender sua rotina e acompanhar seu progresso de forma personalizada: 
-📝 ${config.link}
-
-✨ Pronto! Agora é só começar suas aulas e dar o primeiro passo rumo à transformação que você merece.
-
-Seja muito bem-vinda novamente — estamos juntas nessa! 💛
-
-⚠️ Em caso de Links não clicaveis, basta adicionar o contato`;
-
-            console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
-            console.log('⏳ Aguardando envio da mensagem...');
-            
-            const messageStartTime = Date.now();
-            await client.sendMessage(numeroFormatado, mensagemOnboarding);
-            const messageEndTime = Date.now();
-            
-            console.log(`✅ Mensagem enviada com sucesso! (${messageEndTime - messageStartTime}ms)`);
-            
-            console.log('👥 Iniciando processo de adição ao grupo...');
-            const groupStartTime = Date.now();
-            const adicionadoAoGrupo = await adicionarAoGrupo(numeroFormatado, config.grupo);
-            const groupEndTime = Date.now();
-            console.log(`👥 Processo de grupo finalizado (${groupEndTime - groupStartTime}ms)`);
-
-            if (adicionadoAoGrupo) {
-                console.log('🔄 Removendo de outros grupos...');
-                const removeStartTime = Date.now();
-                await removerDeOutrosGrupos(numeroFormatado, config.grupo);
-                const removeEndTime = Date.now();
-                console.log(`🔄 Remoção de outros grupos finalizada (${removeEndTime - removeStartTime}ms)`);
-            }
-
-            const totalTime = Date.now() - startTime;
-            console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
-
-            res.status(200).json({ 
-                success: true,
-                message: 'Onboarding enviado com sucesso',
-                status: 'Pagamento Aprovado',
-                numeroFormatado,
-                produto: Produto,
-                link: config.link,
-                grupo: config.grupo,
-                codigo: Codigo,
-                adicionadoAoGrupo
-            });
-
-        } else if (Status === "Pagamento Recusado") {
-            console.log('\n❌ STATUS: PAGAMENTO RECUSADO');
-            console.log('📝 Enviando mensagem de reprovação...');
-            
-            const config = configuracaoProdutos[Produto];
-            if (!config) {
-                console.log('❌ ERRO: Produto não reconhecido:', Produto);
-                return res.status(400).json({ error: 'Produto não reconhecido' });
-            }
-            
-            const mensagemReprovacao = `*Oii ${Nome}, tudo bem?* 
-
-Vi que você tentou finalizar a compra do seu *${Produto}*, mas por algum motivo seu pagamento não foi aprovado...🙂 
-
-Estou aqui para te ajudar a finalizar seu pedido, está podendo falar rapidinho? 
-*Posso te ajudar? 🙏🏽*`;
-            
-            console.log(`📱 Enviando mensagem para: ${numeroFormatado}`);
-            console.log('⏳ Aguardando envio da mensagem...');
-            
-            const messageStartTime = Date.now();
-            await client.sendMessage(numeroFormatado, mensagemReprovacao);
-            const messageEndTime = Date.now();
-            
-            console.log(`✅ Mensagem enviada com sucesso! (${messageEndTime - messageStartTime}ms)`);
-            
-            const totalTime = Date.now() - startTime;
-            console.log(`🎉 PROCESSO COMPLETO! Tempo total: ${totalTime}ms`);
-            
-            res.status(200).json({ 
-                success: true,
-                message: 'Mensagem de reprovação enviada com sucesso',
-                status: 'Pagamento Recusado',
-                numeroFormatado,
-                produto: Produto
-            });
-
-        } else {
-            console.log('❓ ERRO: Status desconhecido:', Status);
-            return res.status(400).json({ error: 'Status não reconhecido' });
-        }
+        const numeroFormatado = await formatarNumero(numero);
+        await client.sendMessage(numeroFormatado, mensagem);
+        
+        console.log(`✅ Mensagem enviada para ${numeroFormatado}`);
+        
+        res.json({ 
+            success: true,
+            numeroFormatado,
+            message: 'Mensagem enviada com sucesso'
+        });
         
     } catch (err) {
-        const totalTime = Date.now() - startTime;
-        console.error('\n' + '💥'.repeat(30));
-        console.error('💥 ERRO CRÍTICO AO PROCESSAR REQUISIÇÃO');
-        console.error(`⏰ Tempo até erro: ${totalTime}ms`);
-        console.error(`❌ Mensagem: ${err.message}`);
-        console.error(`❌ Stack: ${err.stack}`);
-        console.error('💥'.repeat(30) + '\n');
-        
+        console.error(`❌ Erro:`, err);
         res.status(500).json({ 
-            error: 'Erro ao processar solicitação',
-            details: err.message 
+            success: false,
+            error: err.message 
+        });
+    }
+});
+
+// ============================================
+// ENDPOINT 2: ADICIONAR A GRUPO
+// ============================================
+
+app.post('/add-to-group', async (req, res) => {
+    console.log('\n👥 /add-to-group chamado');
+    
+    if (!whatsappReady) {
+        return res.status(503).json({ 
+            success: false,
+            error: 'WhatsApp não está pronto' 
         });
     }
     
-    console.log('📨'.repeat(30));
-    console.log('📨 FIM DO PROCESSAMENTO /SEND');
-    console.log('📨'.repeat(30) + '\n');
+    const { numero, nomeGrupo } = req.body;
+    
+    if (!numero || !nomeGrupo) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Campos obrigatórios: numero, nomeGrupo' 
+        });
+    }
+    
+    try {
+        const numeroFormatado = await formatarNumero(numero);
+        
+        const chats = await client.getChats();
+        const grupo = chats.find(chat => chat.isGroup && chat.name === nomeGrupo);
+        
+        if (!grupo) {
+            return res.status(404).json({ 
+                success: false,
+                error: `Grupo "${nomeGrupo}" não encontrado` 
+            });
+        }
+        
+        await grupo.addParticipants([numeroFormatado]);
+        
+        console.log(`✅ ${numeroFormatado} adicionado ao grupo "${nomeGrupo}"`);
+        
+        res.json({ 
+            success: true,
+            numeroFormatado,
+            grupo: nomeGrupo,
+            message: 'Contato adicionado ao grupo com sucesso'
+        });
+        
+    } catch (err) {
+        console.error(`❌ Erro:`, err);
+        res.status(500).json({ 
+            success: false,
+            error: err.message 
+        });
+    }
 });
 
-app.get('/grupos', async (req, res) => {
-    console.log('👥 Endpoint /grupos chamado');
+// ============================================
+// ENDPOINT 3: REMOVER DE OUTROS GRUPOS
+// ============================================
+
+app.post('/remove-from-groups', async (req, res) => {
+    console.log('\n🔄 /remove-from-groups chamado');
     
     if (!whatsappReady) {
-        return res.status(503).json({ error: 'WhatsApp não está pronto ainda' });
+        return res.status(503).json({ 
+            success: false,
+            error: 'WhatsApp não está pronto' 
+        });
+    }
+    
+    const { numero, grupoExcecao } = req.body;
+    
+    if (!numero) {
+        return res.status(400).json({ 
+            success: false,
+            error: 'Campo obrigatório: numero' 
+        });
+    }
+    
+    try {
+        const numeroFormatado = await formatarNumero(numero);
+        
+        const chats = await client.getChats();
+        const grupos = chats.filter(chat => chat.isGroup);
+        
+        const gruposRemovidos = [];
+        
+        for (const grupo of grupos) {
+            // Pular o grupo de exceção
+            if (grupoExcecao && grupo.name === grupoExcecao) {
+                console.log(`⏭️ Pulando grupo "${grupo.name}" (exceção)`);
+                continue;
+            }
+            
+            // Verificar se o bot é admin
+            const euSouAdmin = grupo.participants.some(
+                p => p.id._serialized === client.info.wid._serialized && 
+                     (p.isAdmin || p.isSuperAdmin)
+            );
+            
+            if (!euSouAdmin) {
+                console.log(`⚠️ Não sou admin em "${grupo.name}"`);
+                continue;
+            }
+            
+            // Verificar se o contato está no grupo
+            const estaNoGrupo = grupo.participants.some(
+                p => p.id._serialized === numeroFormatado
+            );
+            
+            if (estaNoGrupo) {
+                console.log(`🗑️ Removendo de "${grupo.name}"`);
+                await grupo.removeParticipants([numeroFormatado]);
+                gruposRemovidos.push(grupo.name);
+                console.log(`✅ Removido de "${grupo.name}"`);
+            }
+        }
+        
+        res.json({ 
+            success: true,
+            numeroFormatado,
+            gruposRemovidos,
+            totalRemovido: gruposRemovidos.length,
+            message: `Removido de ${gruposRemovidos.length} grupo(s)`
+        });
+        
+    } catch (err) {
+        console.error(`❌ Erro:`, err);
+        res.status(500).json({ 
+            success: false,
+            error: err.message 
+        });
+    }
+});
+
+// ============================================
+// ENDPOINT AUXILIAR: LISTAR GRUPOS
+// ============================================
+
+app.get('/list-groups', async (req, res) => {
+    console.log('\n📋 /list-groups chamado');
+    
+    if (!whatsappReady) {
+        return res.status(503).json({ 
+            success: false,
+            error: 'WhatsApp não está pronto' 
+        });
     }
     
     try {
         const chats = await client.getChats();
-        const grupos = chats.filter(chat => chat.isGroup).map(grupo => ({
-            id: grupo.id._serialized,
-            nome: grupo.name,
-            participantes: grupo.participants?.length || 0
-        }));
+        const grupos = chats
+            .filter(chat => chat.isGroup)
+            .map(grupo => ({
+                nome: grupo.name,
+                participantes: grupo.participants?.length || 0,
+                souAdmin: grupo.participants.some(
+                    p => p.id._serialized === client.info.wid._serialized && 
+                         (p.isAdmin || p.isSuperAdmin)
+                )
+            }));
         
-        res.json({ grupos, total: grupos.length });
-        
-    } catch (error) {
-        console.error('❌ Erro ao listar grupos:', error);
-        res.status(500).json({ error: 'Erro ao listar grupos', details: error.message });
-    }
-});
-
-app.get('/test', (req, res) => {
-    console.log('🧪 Endpoint /test chamado');
-    res.json({ 
-        message: 'Servidor funcionando!',
-        timestamp: new Date().toISOString(),
-        produtos: Object.keys(configuracaoProdutos),
-        qrAvailable: !!qrString,
-        whatsappReady
-    });
-});
-
-app.post('/validar-numero', async (req, res) => {
-    console.log('\n🔍 Endpoint /validar-numero chamado');
-    
-    if (!whatsappReady) {
-        return res.status(503).json({ error: 'WhatsApp não está pronto ainda' });
-    }
-    
-    const { numero } = req.body;
-    
-    if (!numero) {
-        return res.status(400).json({ error: 'Campo "numero" é obrigatório' });
-    }
-    
-    try {
-        console.log(`🔍 Testando número: ${numero}`);
-        const numeroFormatado = await formatarNumero(numero);
-        
-        res.json({
+        res.json({ 
             success: true,
-            numeroOriginal: numero,
-            numeroValidado: numeroFormatado,
-            message: 'Número encontrado no WhatsApp!'
+            grupos,
+            total: grupos.length
         });
         
-    } catch (error) {
-        console.error(`❌ Erro ao validar número:`, error);
-        res.status(404).json({
+    } catch (err) {
+        console.error(`❌ Erro:`, err);
+        res.status(500).json({ 
             success: false,
-            numeroOriginal: numero,
-            error: error.message
+            error: err.message 
         });
     }
 });
 
-app.get('/debug-labels', async (req, res) => {
-    res.status(410).json({ message: 'Endpoint removido - funcionalidade de etiquetas desativada' });
-});
-
-app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
-});
+// ============================================
+// INICIALIZAÇÃO
+// ============================================
 
 console.log('🚀 Inicializando WhatsApp...');
 client.initialize();
@@ -946,14 +544,8 @@ client.initialize();
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('🚨 EXCEÇÃO:', error.message);
-});
-
-process.on('unhandledRejection', (reason) => {
-    console.error('🚨 PROMISE REJEITADA:', reason);
+    console.log(`📍 Acesse: http://localhost:${PORT}`);
+    console.log(`📱 QR Code: http://localhost:${PORT}/qr-page`);
 });
 
 process.on('SIGINT', () => {
