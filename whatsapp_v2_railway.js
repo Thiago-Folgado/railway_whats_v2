@@ -2,6 +2,22 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
+// ============================================
+// LIMPAR SESSÃO SE SOLICITADO
+// ============================================
+if (process.env.CLEAR_SESSION === 'true') {
+    const sessionPath = path.join(__dirname, '.wwebjs_auth');
+    if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        console.log('🗑️ Sessão antiga deletada com sucesso!');
+    } else {
+        console.log('ℹ️ Nenhuma sessão encontrada para deletar');
+    }
+}
+
 const app = express();
 
 app.use(express.json());
@@ -288,7 +304,7 @@ async function testarNumeroNoWhatsApp(numeroFormatado) {
 // ============================================
 app.get('/', (req, res) => {
     res.json({ 
-        status: 'WhatsApp Bot v3.0 - Assíncrono',
+        status: 'WhatsApp Bot v3.1 - Com Clear Session',
         whatsappReady,
         queueSize: requestQueue.queue.length,
         processing: requestQueue.processing,
@@ -297,7 +313,8 @@ app.get('/', (req, res) => {
             status: 'GET /status',
             health: 'GET /health',
             qr: 'GET /qr-page',
-            validateNumber: 'POST /validate-number (novo!)',
+            clearSession: 'POST /clear-session (novo!)',
+            validateNumber: 'POST /validate-number',
             sendMessage: 'POST /send-message',
             addToGroup: 'POST /add-to-group',
             listGroups: 'GET /list-groups'
@@ -320,6 +337,48 @@ app.get('/health', (req, res) => {
         uptime: process.uptime(),
         whatsappReady
     });
+});
+
+// ============================================
+// ENDPOINT: LIMPAR SESSÃO (NOVO!)
+// ============================================
+app.post('/clear-session', async (req, res) => {
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`🗑️ LIMPANDO SESSÃO DO WHATSAPP`);
+    console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+    console.log(`${'='.repeat(60)}\n`);
+    
+    try {
+        // Desconectar cliente atual
+        if (whatsappReady) {
+            console.log('📴 Desconectando cliente atual...');
+            await client.logout();
+            whatsappReady = false;
+        }
+        
+        // Deletar pasta de sessão
+        const sessionPath = path.join(__dirname, '.wwebjs_auth');
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
+            console.log('🗑️ Pasta de sessão deletada!');
+        }
+        
+        console.log('🔄 Reinicializando cliente...');
+        await client.initialize();
+        
+        res.json({
+            success: true,
+            message: 'Sessão limpa! Acesse /qr-page para escanear o novo QR code.'
+        });
+        
+    } catch (err) {
+        console.error(`❌ Erro ao limpar sessão: ${err.message}`);
+        res.status(500).json({
+            success: false,
+            error: err.message,
+            hint: 'Tente reiniciar o serviço manualmente'
+        });
+    }
 });
 
 // QR Code
@@ -347,15 +406,46 @@ app.get('/qr-page', (req, res) => {
                         border-radius: 10px;
                     }
                     h1 { color: #25D366; }
+                    .status { 
+                        padding: 15px; 
+                        border-radius: 8px; 
+                        margin: 20px 0;
+                    }
+                    .connected { background: #d4edda; color: #155724; }
+                    .waiting { background: #fff3cd; color: #856404; }
+                    button {
+                        background: #25D366;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin: 5px;
+                    }
+                    button:hover { background: #128C7E; }
+                    button.danger { background: #dc3545; }
+                    button.danger:hover { background: #c82333; }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <h1>📱 WhatsApp Bot</h1>
-                    <p>⏳ QR Code ainda não foi gerado...</p>
+                    <div class="status ${whatsappReady ? 'connected' : 'waiting'}">
+                        ${whatsappReady ? '✅ WhatsApp Conectado!' : '⏳ Aguardando QR Code...'}
+                    </div>
                     <button onclick="location.reload()">🔄 Atualizar</button>
+                    <button class="danger" onclick="clearSession()">🗑️ Limpar Sessão</button>
                 </div>
-                <script>setTimeout(() => location.reload(), 5000);</script>
+                <script>
+                    ${!whatsappReady ? 'setTimeout(() => location.reload(), 5000);' : ''}
+                    async function clearSession() {
+                        if (!confirm('Tem certeza? Isso vai desconectar o WhatsApp.')) return;
+                        const res = await fetch('/clear-session', { method: 'POST' });
+                        const data = await res.json();
+                        alert(data.message || data.error);
+                        location.reload();
+                    }
+                </script>
             </body>
             </html>
         `);
@@ -406,6 +496,9 @@ app.get('/qr-page', (req, res) => {
                     </div>
                     <p>✅ Escaneie o QR code com seu WhatsApp</p>
                 </div>
+                <script>
+                    setTimeout(() => location.reload(), 30000);
+                </script>
             </body>
             </html>
         `);
@@ -413,7 +506,7 @@ app.get('/qr-page', (req, res) => {
 });
 
 // ============================================
-// ENDPOINT 1: VALIDAR NÚMERO (NOVO!)
+// ENDPOINT 1: VALIDAR NÚMERO
 // ============================================
 app.post('/validate-number', async (req, res) => {
     const requestId = `REQ-${Date.now()}`;
@@ -737,7 +830,7 @@ app.get('/list-groups', async (req, res) => {
 // ============================================
 // INICIALIZAÇÃO
 // ============================================
-console.log('🚀 Inicializando WhatsApp Bot v3.0...');
+console.log('🚀 Inicializando WhatsApp Bot v3.1...');
 client.initialize();
 
 const PORT = process.env.PORT || 3000;
